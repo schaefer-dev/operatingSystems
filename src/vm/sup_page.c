@@ -82,7 +82,7 @@ vm_sup_page_init () {
 
 /* function to allocate a supplemental page table entry e.g. a stack*/
 bool
-vm_sup_page_allocate (hash sup_page_hashmap, void *vm_addr)
+vm_sup_page_allocate (void *vm_addr)
 {
   // TODO Frame Loading happens in page fault, we use round down (defined in vaddr.h) 
   // to get the supplemental page using the sup_page_hashmap
@@ -117,7 +117,7 @@ vm_sup_page_allocate (hash sup_page_hashmap, void *vm_addr)
 /* function to allocate a supplemental page table entry for files incuding the file 
 and the offset within the file*/
 bool
-vm_sup_page_file_allocate (hash sup_page_hashmap, void *vm_addr, struct file* file, unsigned file_offset)
+vm_sup_page_file_allocate (void *vm_addr, struct file* file, unsigned file_offset)
 {
   // TODO Frame Loading happens in page fault, we use round down (defined in vaddr.h) 
   // to get the supplemental page using the sup_page_hashmap
