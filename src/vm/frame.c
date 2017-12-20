@@ -3,6 +3,7 @@
 #include <list.h>
 #include "lib/kernel/list.h"
 #include "threads/palloc.h"
+#include "sub_page.h"
 
 
 /* lock to guarantee mutal exclusiveness on frame operations */
@@ -13,22 +14,6 @@ static struct list frame_list;
 
 /* hashmap from phys_addr -> frame for efficient lookup */
 static struct hash frame_hashmap;
-
-struct frame
-  {
-    /* physical address of frame */
-    void *phys_addr;               
-
-    /* supplemental Page Table Entry in which this frame is stored. */
-    // for shared memory implementation, this will change into a list of sup_page_entries
-    struct sup_page_entry *sup_page_entry;
-
-    /* boolean to track if the frame is currently pinned */
-    bool pinned;
-
-    struct list_elem l_elem;
-    struct hash_elem h_elem;
-  };
 
 unsigned
 hash_vm_frame(const struct hash_elem *hash, void *aux aux)
@@ -66,9 +51,9 @@ vm_frame_init () {
   hash_init(&frame_hashmap, hash_vm_frame, hash_compare_vm_frame, NULL);
 }
 
-
+//TODO: add page to pagedir of the corresponding thread
 void*
-vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pflags)
+vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pflags, bool writable)
 {
   lock_acquire (&frame_lock);
 
@@ -86,6 +71,9 @@ vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pfla
   frame->sup_page_entry = sup_page_entry;
   frame->pinned = false;
 
+  // install page in pagedir of thread
+  install_page(sup_page_entry->vm_addr, page, writable);
+
 
   list_push_back (&frame_list, &frame->l_elem);
   hash_insert (&frame_hashmap, &frame->h_elem);
@@ -94,7 +82,7 @@ vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pfla
   return page;
 }
 
-
+//TODO: check if we have to remove entry in pagedir
 void 
 vm_frame_free (void* phys_addr)
 {
@@ -115,6 +103,56 @@ vm_frame_free (void* phys_addr)
 
   lock_release (&frame_lock);
   return;
+}
+
+void*
+evict_page(enum palloc_flags pflags){
+  //TODO: check if this is necessary (b.c. we have to ensure that the list doesn't change during eviction)
+  lock_acquire(&frame_lock);
+  if (list_empty(frame_list))
+    return;
+
+  struct list_elem *iterator = list_begin (frame_list);
+
+  while (iterator != list_end (frame_list)){
+      struct frame *f = list_entry (iterator, struct frame, l_elem);
+
+      struct list_elem *removeElem = iterator;
+      // TODO: this changes if sharing is implemented b.c. there is a list of sup_page_entries
+      // check if access bit is 0
+      struct sup_page_entry *current_sup_page = f->sup_page_entry;
+      struct thread *current_thread = current_sup_page->thread;
+      // TODO: check if vm_addr has to be round_up or round_down
+      bool set = pagedir_is_accessed(current_thread->pagedir, sup_page_entry->vm_addr);
+      if (set){
+        // page is accessed -> set accessed bit to 0
+         pagedir_set_accessed(current_thread->pagedir, sup_page_entry->vm_addr, false);
+      } else{
+        // page is not accessed -> check if it is dirty
+        bool dirty = pagedir_is_dirty(current_thread->pagedir, sup_page_entry->vm_addr);
+        if (dirty){
+          //TODO: treat this different if MMAP is used
+
+        } else {
+          // file is not dirty and not accessed -> simply free frame
+          // TODO: add to swap table
+          sup_page_entry->status = page_status.PAGE_SWAPPED;
+          list_remove(&f->l_elem);
+          pagedir_clear_page(current_thread->pagedir, sup_page_entry->vm_addr);
+          palloc_free_page(f->phys_addr);
+          free(f);
+          lock_release(&frame_lock);
+          return palloc_get_page(pflags);
+        }
+      }
+      iterator = list_next(iterator);
+      if (iterator == list_end (frame_list)){
+        iterator = list_begin(frame_list);
+      }  
+  }
+  // should never be reached
+  lock_release(&frame_lock);
+  return NULL;
 }
 
 // TODO use frame_list to iterate over it in clock algorithm

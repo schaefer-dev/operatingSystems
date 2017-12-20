@@ -80,7 +80,7 @@ vm_sup_page_init () {
   
 }
 
-
+/* function to allocate a supplemental page table entry e.g. a stack*/
 bool
 vm_sup_page_allocate (hash sup_page_hashmap, void *vm_addr)
 {
@@ -97,9 +97,43 @@ vm_sup_page_allocate (hash sup_page_hashmap, void *vm_addr)
   sup_page_entry->swap_addr = NULL;
   sup_page_entry->thread = current_thread;
   sup_page_entry->status = page_stats.PAGE_NOT_LOADED;
-  sup_page_entry->dirty = false;
-  sup_page_entry->accessed = false;
   sup_page_entry->file = NULL;
+  sup_page_entry->file_offset = 0;
+
+  /* check if there is already the same hash contained in the hashmap, in which case we abort! */
+  struct hash_elem *prev_elem;
+  prev_elem = hash_insert (&(current_thread->sup_page_hashmap), &(sup_page_entry->h_elem));
+  if (prev_elem == NULL) {
+    return true;
+  }
+  else {
+    /* creation of supplemental page failed, because there was already an entry 
+       with the same hashvalue */
+    free (sup_page_entry);
+    return false;
+  }
+}
+
+/* function to allocate a supplemental page table entry for files incuding the file 
+and the offset within the file*/
+bool
+vm_sup_page_file_allocate (hash sup_page_hashmap, void *vm_addr, struct file* file, unsigned file_offset)
+{
+  // TODO Frame Loading happens in page fault, we use round down (defined in vaddr.h) 
+  // to get the supplemental page using the sup_page_hashmap
+
+  struct thread *current_thread = thread_current();
+
+  struct sup_page_entry *sup_page_entry = (struct sup_page_entry *) malloc(sizeof(struct sup_page_entry));
+
+  sup_page_entry->phys_addr = NULL;
+
+  sup_page_entry->vm_addr = vm_addr;
+  sup_page_entry->swap_addr = NULL;
+  sup_page_entry->thread = current_thread;
+  sup_page_entry->status = page_stats.PAGE_NOT_LOADED;
+  sup_page_entry->file = file;
+  sup_page_entry->file_offset = file_offset;
 
   /* check if there is already the same hash contained in the hashmap, in which case we abort! */
   struct hash_elem *prev_elem;

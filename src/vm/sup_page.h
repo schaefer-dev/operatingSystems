@@ -21,9 +21,6 @@ struct sup_page_entry
     /* thread this frame belongs to */
     struct thread *thread;
 
-    bool dirty;
-    bool accessed;
-
     /* offset at which this page starts reading the referenced file */
     unsigned file_offset;
 
@@ -52,6 +49,7 @@ enum page_status
 
 
 bool vm_sup_page_allocate (hash sup_page_hashmap, void *upage, void *kpage);
+bool vm_sup_page_file_allocate (hash sup_page_hashmap, void *vm_addr, struct file* file, unsigned file_offset);
 
 void vm_sup_page_free (void* phys_addr);
 
