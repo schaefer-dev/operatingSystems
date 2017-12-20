@@ -44,6 +44,8 @@ vm_sup_page_init () {
 }
 
 
+// TODO: impossible to have kpage as argument
+// TODO: use a list of threads -> memory sharing
 bool
 vm_sup_page_allocate (hash sup_page_hashmap, void *upage, void *kpage)
 {
@@ -54,13 +56,17 @@ vm_sup_page_allocate (hash sup_page_hashmap, void *upage, void *kpage)
 
   struct sup_page_entry *sup_page_entry = (struct sup_page_entry *) malloc(sizeof(struct sup_page_entry));
 
+  //TODO: has to be set to NULL initially
   sup_page_entry->phys_addr = kpage;
+
   sup_page_entry->vm_addr = upage;
   sup_page_entry->swap_addr = NULL;
   sup_page_entry->thread = current_thread;
+  //TODO: check if this should be a paramter
   sup_page_entry->status = ????;
   sup_page_entry->dirty = false;
   sup_page_entry->accessed = false;
+  // TODO: could also be a paramter
   sup_page_entry->file = NULL;
 
   struct hash_elem *prev_elem;
