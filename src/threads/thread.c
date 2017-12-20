@@ -14,6 +14,7 @@
 #include "threads/malloc.h"
 #include "filesys/file.h"
 #include "userprog/syscall.h"
+#include "vm/sup_page.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -86,6 +87,7 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 struct child_process* add_child(pid_t child_pid, pid_t parent_pid);
+
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -307,6 +309,7 @@ thread_exit (void)
 
 #ifdef USERPROG
   process_exit ();
+  vm_sup_page_hashmap_close(current_thread);
   if (current_thread->executable != NULL){
     lock_acquire(&lock_filesystem);
     file_close((current_thread->executable));
@@ -508,8 +511,11 @@ init_thread (struct thread *t, const char *name, int priority)
   /* initialize list for child processes */
   list_init(&t->child_list);
 
-  /*initialize lock for child_list */
+  /* initialize lock for child_list */
   lock_init(&t->child_list_lock);
+
+  /* initialize  hashmap for contained supplemental pages */
+  hash_init(&t->sup_page_hashmap, hash_vm_sup_page, hash_compare_vm_sup_page, NULL);
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);

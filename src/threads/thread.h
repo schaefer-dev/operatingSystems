@@ -115,6 +115,10 @@ struct thread
     /* Counter to give every file in file list a unique fd */
     int current_fd;
 
+    // TODO initialize this hashmap in thread creation!
+    /* hashmap from vm_addr -> supplemental page for efficient lookup */
+    struct hash sup_page_hashmap;
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
