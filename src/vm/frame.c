@@ -20,10 +20,8 @@ struct frame
     void *phys_addr;               
 
     /* supplemental Page Table Entry in which this frame is stored. */
+    // for shared memory implementation, this will change into a list of sup_page_entries
     struct sup_page_entry *sup_page_entry;
-
-    /* thread this frame belongs to */
-    struct thread *thread;
 
     /* boolean to track if the frame is currently pinned */
     bool pinned;
@@ -32,17 +30,46 @@ struct frame
     struct hash_elem h_elem;
   };
 
+unsigned
+hash_vm_frame(const struct hash_elem *hash, void *aux aux)
+{
+  const struct frame *frame;
+  frame = hash_entry(hash, struct frame, h_elem);
+  return hash_bytes(&frame->phys_addr, sizeof(frame->phys_addr));
+}
+
+bool
+hash_compare_vm_frame(const struct hash_elem *a_, const struct hash_elem *b_, void *aux aux)
+{
+  const struct frame *a = hash_entry (a_, struct hash, h_elem);
+  const struct frame *b = hash_entry (b_, struct hash, h_elem);
+
+  return (a->phys_addr < b->phys_addr);
+}
+
+struct frame*
+vm_frame_lookup (const void* phys_addr)
+{
+  struct frame search_frame;
+  struct hash_elem *hash;
+
+  search_frame.phys_addr = phys_addr;
+  hash = hash_find(&frame_hashmap, &search_frame.h_elem);
+  return e != NULL ? hash_entry (hash, struct frame, h_elem) : NULL; 
+}
+
 
 void
 vm_frame_init () {
   lock_init (&frame_lock);
   list_init (&frame_list);
-  // TODO init hashmap
+  hash_init(&frame_hashmap, hash_vm_frame, hash_compare_vm_frame, NULL);
 }
 
 
 void*
-vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pflags) {
+vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pflags)
+{
   lock_acquire (&frame_lock);
 
   // try to get page using palloc
@@ -57,7 +84,6 @@ vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pfla
   struct frame *frame = malloc(sizeof(struct frame));
   frame->phys_addr = page;
   frame->sup_page_entry = sup_page_entry;
-  frame->thread = thread_current();
   frame->pinned = false;
 
 
@@ -70,31 +96,25 @@ vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pfla
 
 
 void 
-vm_frame_free (void* phys_addr) {
+vm_frame_free (void* phys_addr)
+{
   lock_acquire (&frame_lock);
 
-  /* create frame to perform the lookup with, without reference to "free" it after scope */
-  struct frame lookup_frame;
-  lookup_frame.phys_addr = phys_addr;
+  struct frame *found_frame = vm_frame_lookup(phys_addr);
 
-  /* search the frame with the correct hash */
-  struct hash_elem *h_elem_lookup = hash_find (&frame_hashmap, &(lookup_frame.h_elem));
-  if (h_elem_loopup == NULL) {
+  if (found_frame == NULL) {
     // the table was not found, this should be impossible!
     printf("frame not found in Frame Table!");
     return;
   }
 
-  struct frame *frame;
-  frame = hash_entry(h_elem_loopup, struct frame, h_lem);
+  hash_delete (&frame_hashmap, &found_frame->h_elem);
+  list_remove (&found_frame->l_elem);
 
-  hash_delete (&frame_hashmap, &frame->h_elem);
-  list_remove (&frame->l_elem);
+  free(found_frame);
 
   lock_release (&frame_lock);
   return;
 }
 
 // TODO use frame_list to iterate over it in clock algorithm
-
-// TODO implement hash function
