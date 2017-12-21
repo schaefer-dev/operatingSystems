@@ -26,6 +26,7 @@ vm_swap_init()
     swap_size = block_size(swap);
     swap_free_bitmap = bitmap_create(swap_size);
     bitmap_set_all (swap_free_bitmap, true);
+    lock_init(&swap_lock);
 }
 
 
