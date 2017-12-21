@@ -515,7 +515,9 @@ init_thread (struct thread *t, const char *name, int priority)
   lock_init(&t->child_list_lock);
 
   /* initialize  hashmap for contained supplemental pages */
-  hash_init(&t->sup_page_hashmap, hash_vm_sup_page, hash_compare_vm_sup_page, NULL);
+#ifdef USERPROG
+  vm_sup_page_init(t);
+#endif
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);

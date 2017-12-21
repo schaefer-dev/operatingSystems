@@ -5,6 +5,7 @@
 #include "threads/palloc.h"
 #include "devices/block.h"
 #include "filesys/file.h"
+#include "threads/thread.h"
 
 /* Different statuses the page can have */
 enum page_status
@@ -54,7 +55,7 @@ struct sup_page_entry
 unsigned hash_vm_sup_page(const struct hash_elem *hash, void *aux);
 bool hash_compare_vm_sup_page(const struct hash_elem *a_, const struct hash_elem *b_, void *aux);
 
-
+void vm_sup_page_init(struct thread *thread);
 bool vm_sup_page_file_allocate (void *vm_addr, struct file* file, unsigned file_offset, bool writable);
 void vm_sup_page_free (void* phys_addr);
 struct sup_page_entry* vm_sup_page_lookup (const struct thread *thread, const void* vm_addr);

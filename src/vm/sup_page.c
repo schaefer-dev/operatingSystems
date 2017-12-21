@@ -13,8 +13,9 @@ unsigned
 hash_vm_sup_page(const struct hash_elem *hash, void *aux)
 {
   const struct sup_page_entry *sup_page_entry;
-  frame = hash_entry(hash, struct sup_page_entry, h_elem);
-  return hash_bytes(&sup_page_entry->vm_addr, sizeof(sup_page_entry->vm_addr));
+  sup_page_entry = hash_entry(hash, struct sup_page_entry, h_elem);
+  unsigned hash = hash_bytes(&sup_page_entry->vm_addr, sizeof(sup_page_entry->vm_addr));
+  return hash;
 }
 
 /* Hash compare function for supplemental page table entries */
@@ -24,7 +25,9 @@ hash_compare_vm_sup_page(const struct hash_elem *a_, const struct hash_elem *b_,
   const struct sup_page_entry *a = hash_entry (a_, struct hash, h_elem);
   const struct sup_page_entry *b = hash_entry (b_, struct hash, h_elem);
 
-  return (a->vm_addr < b->vm_addr);
+  bool result = (a->vm_addr) < (b->vm_addr);
+
+  return result;
 }
 
 /* returns the sup_page_entry of thread, corresponding to passed vm_addr */
@@ -36,6 +39,7 @@ vm_sup_page_lookup (const struct thread *thread, const void* vm_addr)
 
   search_sup_page_entry.vm_addr = vm_addr;
   hash = hash_find(&(thread->sup_frame_hashmap), &search_frame.h_elem);
+  
   return e != NULL ? hash_entry (hash, struct sup_page_entry, h_elem) : NULL; 
 }
 
@@ -78,8 +82,8 @@ vm_sup_page_free(struct hash_elem *hash, void *aux)
 
 /* initialize ressources for supplemental page */
 void
-vm_sup_page_init () {
-  
+vm_sup_page_init (struct thread *thread) {
+  hash_init(&thread->sup_page_hashmap, hash_vm_sup_page, hash_compare_vm_sup_page, NULL);
 }
 
 /* function to allocate a supplemental page table entry e.g. a stack*/

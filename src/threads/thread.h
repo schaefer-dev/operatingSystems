@@ -4,9 +4,11 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "vm/sup_page.h"
 #include "userprog/process.h"
 #include "threads/synch.h"
 #include "lib/kernel/hash.h"
+#include "vm/sup_page.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
