@@ -5,8 +5,7 @@
 #include "threads/palloc.h"
 #include "threads/malloc.h"
 #include "filesys/file.h"
-
-void vm_sup_page_free(struct hash_elem *hash, void *aux);
+#include "vm/sup_page.h"
 
 /* Hash function for supplemental page table entries */
 unsigned
@@ -59,21 +58,21 @@ vm_sup_page_free(struct hash_elem *hash, void *aux)
   struct sup_page_entry *lookup_sup_page_entry;
   lookup_sup_page_entry = hash_entry(hash, struct sup_page_entry, h_elem);
 
-  if (lookup_sup_page_entry->status == page_status.PAGE_SWAPPED){
+  if (lookup_sup_page_entry->status == PAGE_SWAPPED){
     /* Case of the Page content swapped */ 
     // TODO 
 
-  } else if (lookup_sup_page_entry->page_status == page_status.PAGE_LOADED){
+  } else if (lookup_sup_page_entry->status == PAGE_LOADED){
     /* Case of the Page content in physical Memory */
     // TODO 
 
-  } else if (lookup_sup_page_entry->page_status == page_status.PAGE_NOT_LOADED){
+  } else if (lookup_sup_page_entry->status == PAGE_NOT_LOADED){
     /* Case of the Page content not loaded */
     // TODO
 
   } else {
     // TODO remove this later
-    printf("illegal page status for free, should never happen!\n")
+    printf("illegal page status for free, should never happen!\n");
   }
   
   free(lookup_sup_page_entry);
@@ -102,7 +101,7 @@ vm_sup_page_allocate (void *vm_addr)
   sup_page_entry->vm_addr = vm_addr;
   sup_page_entry->swap_addr = NULL;
   sup_page_entry->thread = current_thread;
-  sup_page_entry->status = page_stats.PAGE_NOT_LOADED;
+  sup_page_entry->status = PAGE_NOT_LOADED;
   sup_page_entry->file = NULL;
   sup_page_entry->file_offset = 0;
 
@@ -137,7 +136,7 @@ vm_sup_page_file_allocate (void *vm_addr, struct file* file, unsigned file_offse
   sup_page_entry->vm_addr = vm_addr;
   sup_page_entry->swap_addr = NULL;
   sup_page_entry->thread = current_thread;
-  sup_page_entry->status = page_stats.PAGE_NOT_LOADED;
+  sup_page_entry->status = PAGE_NOT_LOADED;
   sup_page_entry->file = file;
   sup_page_entry->file_offset = file_offset;
 
