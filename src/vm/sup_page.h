@@ -57,7 +57,7 @@ bool hash_compare_vm_sup_page(const struct hash_elem *a_, const struct hash_elem
 
 void vm_sup_page_init(struct thread *thread);
 bool vm_sup_page_allocate (void *vm_addr);
-bool vm_sup_page_file_allocate (void *vm_addr, struct file* file, unsigned file_offset);
+bool vm_sup_page_file_allocate (void *vm_addr, struct file* file, unsigned file_offset, bool writable);
 
 void vm_sup_page_free(const struct hash_elem *hash, void *aux UNUSED);
 struct sup_page_entry* vm_sup_page_lookup (const struct thread *thread, const void* vm_addr);

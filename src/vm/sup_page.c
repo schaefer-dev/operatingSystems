@@ -121,8 +121,9 @@ vm_sup_page_allocate (void *vm_addr)
 /* function to allocate a supplemental page table entry for files incuding the file 
 and the offset within the file*/
 bool
-vm_sup_page_file_allocate (void *vm_addr, struct file* file, unsigned file_offset)
+vm_sup_page_file_allocate (void *vm_addr, struct file* file, unsigned file_offset, bool writable)
 {
+  // TODO implement writable parameter
   // TODO Frame Loading happens in page fault, we use round down (defined in vaddr.h) 
   // to get the supplemental page using the sup_page_hashmap
 
