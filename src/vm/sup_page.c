@@ -150,32 +150,4 @@ vm_sup_page_file_allocate (void *vm_addr, struct file* file, unsigned file_offse
 }
 
 
-void 
-vm_sup_page_free (void* phys_addr) {
-  lock_acquire (&frame_lock);
-
-  /* create frame to perform the lookup with, without reference to "free" it after scope */
-  struct frame lookup_frame;
-  lookup_frame.phys_addr = phys_addr;
-
-  /* search the frame with the correct hash */
-  struct hash_elem *h_elem_lookup = hash_find (&frame_hashmap, &(lookup_frame.h_elem));
-  if (h_elem_loopup == NULL) {
-    // the table was not found, this should be impossible!
-    printf("frame not found in Frame Table!");
-    return;
-  }
-
-  struct frame *frame;
-  frame = hash_entry(h_elem_loopup, struct frame, h_lem);
-
-  hash_delete (&frame_hashmap, &frame->h_elem);
-  list_remove (&frame->l_elem);
-
-  lock_release (&frame_lock);
-  return;
-}
-
-// TODO use frame_list to iterate over it in clock algorithm
-
 // TODO implement hash function

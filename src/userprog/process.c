@@ -689,6 +689,22 @@ install_page (void *upage, void *kpage, bool writable)
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
 
+/* Removes a mapping from user virtual address UPAGE to kernel to
+   kernel virtual address from the page table.
+   UPAGE need not be mapped.
+   Returns false if UPAGE is still mapped.
+*/
+static bool
+uninstall_page (void* upage)
+{
+  struct thread *t = thread_current();
+  struct sup_page_entry* sup_page= vm_sup_page_lookup(t, upage);
+  if (sup_page->kpage != NULL || sup_page->status == page_status.LOADED)
+    return false;
+  pagedir_clear_page (t->pagedir, upage);
+  return true;
+}
+
 
 /* returns a the child with pid, or NULL if this child does
    not exist for the currently running thread. */

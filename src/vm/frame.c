@@ -4,6 +4,7 @@
 #include "lib/kernel/list.h"
 #include "threads/palloc.h"
 #include "sub_page.h"
+#include "userprog/process.h"
 
 
 /* lock to guarantee mutal exclusiveness on frame operations */
@@ -82,9 +83,9 @@ vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pfla
   return page;
 }
 
-//TODO: check if we have to remove entry in pagedir
+//TODO: check if we have to set status and phys address of sub_page_entry
 void 
-vm_frame_free (void* phys_addr)
+vm_frame_free (void* phys_addr, void* upage)
 {
   lock_acquire (&frame_lock);
 
@@ -99,11 +100,18 @@ vm_frame_free (void* phys_addr)
   hash_delete (&frame_hashmap, &found_frame->h_elem);
   list_remove (&found_frame->l_elem);
 
+  palloc_free_page(phys_addr);
+
+  //TODO: possibly this has to be removed and the original function to clear pages has to be used
+  // possibly pagedir doesn't exist anymore??
+  uninstall_page(upage);
+
   free(found_frame);
 
   lock_release (&frame_lock);
   return;
 }
+
 
 void*
 evict_page(enum palloc_flags pflags){
@@ -136,10 +144,14 @@ evict_page(enum palloc_flags pflags){
         } else {
           // file is not dirty and not accessed -> simply free frame
           // TODO: add to swap table
-          sup_page_entry->status = page_status.PAGE_SWAPPED;
+          // TODO bad could be used by a function but this function would have to ensure that lock is hold
           list_remove(&f->l_elem);
+          hash_delete (&frame_hashmap, &found_frame->h_elem);
           pagedir_clear_page(current_thread->pagedir, sup_page_entry->vm_addr);
           palloc_free_page(f->phys_addr);
+          sup_page_entry->status = page_status.PAGE_SWAPPED;
+          sup_page_entry->phys_addr = NULL;
+          uninstall_page(upage);
           free(f);
           lock_release(&frame_lock);
           return palloc_get_page(pflags);
