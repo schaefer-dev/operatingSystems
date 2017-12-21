@@ -4,6 +4,7 @@
 #include "lib/kernel/hash.h"
 #include "threads/palloc.h"
 #include "devices/block.h"
+#include "filesys/file.h"
 
 /* Different statuses the page can have */
 enum page_status
@@ -50,15 +51,17 @@ struct sup_page_entry
   };
 
 
-bool vm_sup_page_allocate (void *upage, void *kpage);
+unsigned hash_vm_sup_page(const struct hash_elem *hash, void *aux);
+bool hash_compare_vm_sup_page(const struct hash_elem *a_, const struct hash_elem *b_, void *aux);
+
+
 bool vm_sup_page_file_allocate (void *vm_addr, struct file* file, unsigned file_offset, bool writable);
-
 void vm_sup_page_free (void* phys_addr);
-
 struct sup_page_entry* vm_sup_page_lookup (const struct thread *thread, const void* vm_addr);
 bool hash_compare_vm_sup_page(const struct hash_elem *a_, const struct hash_elem *b_, void *aux);
 unsigned hash_vm_sup_page(const struct hash_elem *hash, void *aux);
 void vm_sup_page_hashmap_close(const struct thread *thread);
+bool vm_sup_page_allocate (void *vm_addr);
 
 
 #endif /* vm/sup_page.h */

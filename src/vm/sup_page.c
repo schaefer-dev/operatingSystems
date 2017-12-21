@@ -3,12 +3,14 @@
 #include <list.h>
 #include "lib/kernel/list.h"
 #include "threads/palloc.h"
+#include "threads/malloc.h"
+#include "filesys/file.h"
 
-void vm_sup_page_free(struct hash_elem *hash, void *aux aux);
+void vm_sup_page_free(struct hash_elem *hash, void *aux);
 
 /* Hash function for supplemental page table entries */
 unsigned
-hash_vm_sup_page(const struct hash_elem *hash, void *aux aux)
+hash_vm_sup_page(const struct hash_elem *hash, void *aux)
 {
   const struct sup_page_entry *sup_page_entry;
   frame = hash_entry(hash, struct sup_page_entry, h_elem);
