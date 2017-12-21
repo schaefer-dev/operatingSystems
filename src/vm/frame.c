@@ -167,10 +167,10 @@ evict_page(enum palloc_flags pflags){
           pagedir_clear_page(current_thread->pagedir, current_sup_page->vm_addr);
           // delete the frame entry and allocate a new page
           free(f);
-          struct frame free_frame = palloc_get_page(pflags|PAL_ZERO);
-          // release lock and return free frame
+          void* phys_addr = palloc_get_page(pflags|PAL_ZERO);
+          // release lock and return phys addr of frame
           lock_release(&frame_lock);
-          return free_frame;
+          return phys_addr;
         }
       }
       // page was accessed -> look at next frame if accessed
