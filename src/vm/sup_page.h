@@ -15,8 +15,8 @@ struct sup_page_entry
     /* Virtual Memory adress this page will be loaded to in a page fault */
     void *vm_addr;
 
-    /* swap address of supplemental page */
-    void *swap_addr;
+    /* swap sector of swapped page */
+    block_sector_t swap_addr;
 
     /* thread this frame belongs to */
     struct thread *thread;
