@@ -60,6 +60,7 @@ vm_frame_init () {
 }
 
 //TODO: add page to pagedir of the corresponding thread
+//TODO: check if this function should simply return the reference to the frame b.c. there are different ways to load (files, mmap, swap...)
 void*
 vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pflags, bool writable)
 {
@@ -71,6 +72,7 @@ vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pfla
   if (page == NULL) {
     // Frame allocation Failed
     // TODO evice page here to make room
+    // TODO lock is hold at this place so evict_page shouldn't acquire the lock check if this is a good idea
     return NULL;
   }
 
@@ -131,7 +133,7 @@ evict_page(enum palloc_flags pflags){
   while (iterator != list_end (&frame_list)){
       struct frame *f = list_entry (iterator, struct frame, l_elem);
 
-      struct list_elem *removeElem = iterator;
+      //struct list_elem *removeElem = iterator;
       // TODO: this changes if sharing is implemented b.c. there is a list of sup_page_entries
       // check if access bit is 0
       struct sup_page_entry *current_sup_page = f->sup_page_entry;
@@ -153,11 +155,10 @@ evict_page(enum palloc_flags pflags){
           // TODO bad could be used by a function but this function would have to ensure that lock is hold
           list_remove(&f->l_elem);
           hash_delete (&frame_hashmap, &f->h_elem);
-          pagedir_clear_page(current_thread->pagedir, current_sup_page->vm_addr);
           palloc_free_page(f->phys_addr);
           current_sup_page->status = PAGE_SWAPPED;
           current_sup_page->phys_addr = NULL;
-          uninstall_page(current_sup_page->vm_addr);
+          pagedir_clear_page(current_thread->pagedir, current_sup_page->vm_addr);
           free(f);
           lock_release(&frame_lock);
           return palloc_get_page(pflags);
