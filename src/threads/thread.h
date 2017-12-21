@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include "userprog/process.h"
 #include "threads/synch.h"
+#include "lib/kernel/hash.h"
 
 /* States in a thread's life cycle. */
 enum thread_status

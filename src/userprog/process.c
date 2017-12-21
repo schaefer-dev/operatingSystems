@@ -699,7 +699,7 @@ uninstall_page (void* upage)
 {
   struct thread *t = thread_current();
   struct sup_page_entry* sup_page= vm_sup_page_lookup(t, upage);
-  if (sup_page->kpage != NULL || sup_page->status == page_status.LOADED)
+  if (sup_page->phys_addr != NULL || sup_page->status == PAGE_LOADED)
     return false;
   pagedir_clear_page (t->pagedir, upage);
   return true;

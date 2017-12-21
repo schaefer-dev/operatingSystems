@@ -17,7 +17,7 @@ hash_vm_sup_page(const struct hash_elem *hash, void *aux aux)
 
 /* Hash compare function for supplemental page table entries */
 bool
-hash_compare_vm_sup_page(const struct hash_elem *a_, const struct hash_elem *b_, void *aux aux)
+hash_compare_vm_sup_page(const struct hash_elem *a_, const struct hash_elem *b_, void *aux)
 {
   const struct sup_page_entry *a = hash_entry (a_, struct hash, h_elem);
   const struct sup_page_entry *b = hash_entry (b_, struct hash, h_elem);
@@ -48,7 +48,7 @@ vm_sup_page_hashmap_close(const struct thread *thread)
    this function should only be used by hash_destroy! */
 // TODO might have to be static to be found by hash_destroy!
 void
-vm_sup_page_free(struct hash_elem *hash, void *aux aux)
+vm_sup_page_free(struct hash_elem *hash, void *aux)
 {
   struct sup_page_entry *lookup_sup_page_entry;
   lookup_sup_page_entry = hash_entry(hash, struct sup_page_entry, h_elem);
