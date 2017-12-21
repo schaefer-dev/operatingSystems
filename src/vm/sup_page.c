@@ -5,25 +5,25 @@
 #include "threads/palloc.h"
 #include "threads/malloc.h"
 #include "filesys/file.h"
+#include "vm/sup_page.h"
 
-void vm_sup_page_free(struct hash_elem *hash, void *aux);
+void vm_sup_page_free(const struct hash_elem *hash, void *aux UNUSED);
 
 /* Hash function for supplemental page table entries */
 unsigned
-hash_vm_sup_page(const struct hash_elem *hash, void *aux)
+hash_vm_sup_page(const struct hash_elem *sup_p_, void *aux UNUSED)
 {
-  const struct sup_page_entry *sup_page_entry;
-  sup_page_entry = hash_entry(hash, struct sup_page_entry, h_elem);
-  unsigned hash = hash_bytes(&sup_page_entry->vm_addr, sizeof(sup_page_entry->vm_addr));
-  return hash;
+  const struct sup_page_entry *sup_p = hash_entry(sup_p_, struct sup_page_entry, h_elem);
+  unsigned hash_val = hash_bytes(&sup_p->vm_addr, sizeof(sup_p->vm_addr));
+  return hash_val;
 }
 
 /* Hash compare function for supplemental page table entries */
 bool
-hash_compare_vm_sup_page(const struct hash_elem *a_, const struct hash_elem *b_, void *aux)
+hash_compare_vm_sup_page(const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED)
 {
-  const struct sup_page_entry *a = hash_entry (a_, struct hash, h_elem);
-  const struct sup_page_entry *b = hash_entry (b_, struct hash, h_elem);
+  const struct sup_page_entry *a = hash_entry (a_, struct sup_page_entry, h_elem);
+  const struct sup_page_entry *b = hash_entry (b_, struct sup_page_entry, h_elem);
 
   bool result = (a->vm_addr) < (b->vm_addr);
 
