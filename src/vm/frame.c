@@ -1,5 +1,6 @@
 #include <hash.h>
 #include "lib/kernel/hash.h"
+#include "threads/malloc.h"
 #include <list.h>
 #include "lib/kernel/list.h"
 #include "threads/palloc.h"
@@ -149,7 +150,7 @@ evict_page(enum palloc_flags pflags){
           hash_delete (&frame_hashmap, &found_frame->h_elem);
           pagedir_clear_page(current_thread->pagedir, sup_page_entry->vm_addr);
           palloc_free_page(f->phys_addr);
-          sup_page_entry->status = page_status.PAGE_SWAPPED;
+          sup_page_entry->status = PAGE_SWAPPED;
           sup_page_entry->phys_addr = NULL;
           uninstall_page(upage);
           free(f);
@@ -158,8 +159,8 @@ evict_page(enum palloc_flags pflags){
         }
       }
       iterator = list_next(iterator);
-      if (iterator == list_end (frame_list)){
-        iterator = list_begin(frame_list);
+      if (iterator == list_end (&frame_list)){
+        iterator = list_begin(&frame_list);
       }  
   }
   // should never be reached

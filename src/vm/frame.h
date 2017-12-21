@@ -24,9 +24,10 @@ struct frame
     struct hash_elem h_elem;
   };
 
-void vm_frame_init();
+void vm_frame_init(void);
 
-void* vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pflags), bool writable;
+// TODO writable necessary here?
+void* vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pflags, bool writable);
 
 void vm_frame_free (void* phys_addr);
 

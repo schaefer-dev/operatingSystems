@@ -36,23 +36,24 @@ vm_sup_page_lookup (const struct thread *thread, const void* vm_addr)
   struct hash_elem *hash;
 
   search_sup_page_entry.vm_addr = vm_addr;
-  hash = hash_find(&(thread->sup_frame_hashmap), &search_frame.h_elem);
+  hash = hash_find(&(thread->sup_page_hashmap), &search_sup_page_entry.h_elem);
   
-  return e != NULL ? hash_entry (hash, struct sup_page_entry, h_elem) : NULL; 
+  // TODO refactor this line!
+  return hash != NULL ? hash_entry (hash, struct sup_page_entry, h_elem) : NULL; 
 }
 
 /* close the entire hashmap and free all ressources contained in it */
 void
-vm_sup_page_hashmap_close(const struct thread *thread)
+vm_sup_page_hashmap_close(struct thread *thread)
 {
-  hash_destroy(thread->sup_page_hashmap, vm_sup_page_free);
+  hash_destroy(&(thread->sup_page_hashmap), vm_sup_page_free);
 }
 
 /* free the ressources of the page with the corresponding hash_elem 
    this function should only be used by hash_destroy! */
 // TODO might have to be static to be found by hash_destroy!
 void
-vm_sup_page_free(struct hash_elem *hash, void *aux)
+vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED)
 {
   struct sup_page_entry *lookup_sup_page_entry;
   lookup_sup_page_entry = hash_entry(hash, struct sup_page_entry, h_elem);
