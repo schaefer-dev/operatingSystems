@@ -42,6 +42,8 @@ vm_swap_get_free()
         return;
     }
 
+    /* get the first sector with SECTORS_FOR_PAGE successive free secors and sets these sectors to 
+       occupied already */
     block_sector_t free_sector = bitmap_scan_and_flip (swap_free_bitmap, 0, SECTORS_FOR_PAGE, true);
 
     if (free_sector == BITMAP_ERROR){
