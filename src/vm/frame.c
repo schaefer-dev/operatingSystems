@@ -130,21 +130,21 @@ evict_page(enum palloc_flags pflags){
 
   struct list_elem *iterator = list_begin (&frame_list);
 
+  // iterate over all frames until a frame is not accessed (could be more than iteration)
   while (iterator != list_end (&frame_list)){
       struct frame *f = list_entry (iterator, struct frame, l_elem);
 
-      //struct list_elem *removeElem = iterator;
-      // TODO: this changes if sharing is implemented b.c. there is a list of sup_page_entries
-      // check if access bit is 0
       struct sup_page_entry *current_sup_page = f->sup_page_entry;
       struct thread *current_thread = current_sup_page->thread;
       // TODO: check if vm_addr has to be round_up or round_down
+      // check if access bit is 0
       bool set = pagedir_is_accessed(current_thread->pagedir, current_sup_page->vm_addr);
       if (set){
-        // page is accessed -> set accessed bit to 0
+        // page is accessed -> set accessed bit to 0 and don't evict this page in this iteration
          pagedir_set_accessed(current_thread->pagedir, current_sup_page->vm_addr, false);
       } else{
-        // page is not accessed -> check if it is dirty
+        // page is not accessed (can be evicted)-> check if it is dirty
+        // TODO add swap stuff
         bool dirty = pagedir_is_dirty(current_thread->pagedir, current_sup_page->vm_addr);
         if (dirty){
           //TODO: treat this different if MMAP is used
@@ -153,19 +153,30 @@ evict_page(enum palloc_flags pflags){
           // file is not dirty and not accessed -> simply free frame
           // TODO: add to swap table
           // TODO bad could be used by a function but this function would have to ensure that lock is hold
+
+          // remove frame from list and hashmap
           list_remove(&f->l_elem);
           hash_delete (&frame_hashmap, &f->h_elem);
+          /* free page and set phys_addr in sup_page to NULL and status to swapped b.c. the data of the frame
+              are placed in the swap partition 
+          */
           palloc_free_page(f->phys_addr);
           current_sup_page->status = PAGE_SWAPPED;
           current_sup_page->phys_addr = NULL;
+          // remove page from pagedir b.c. it is no longer loaded -> sets present bit to 0
           pagedir_clear_page(current_thread->pagedir, current_sup_page->vm_addr);
+          // delete the frame entry and allocate a new page
           free(f);
+          struct frame free_frame = palloc_get_page(pflags|PAL_ZERO);
+          // release lock and return free frame
           lock_release(&frame_lock);
-          return palloc_get_page(pflags);
+          return free_frame;
         }
       }
+      // page was accessed -> look at next frame if accessed
       iterator = list_next(iterator);
       if (iterator == list_end (&frame_list)){
+        // all pages were accssed -> start again with first element to find a page which was not accessed recently
         iterator = list_begin(&frame_list);
       }  
   }
