@@ -7,6 +7,7 @@
 #include "vm/sup_page.h"
 #include "userprog/process.h"
 #include "vm/frame.h"
+#include "userprog/pagedir.h"
 
 
 /* lock to guarantee mutal exclusiveness on frame operations */
@@ -15,11 +16,15 @@ static struct lock frame_lock;
 /* list of all frames */
 static struct list frame_list;
 
+void* evict_page(enum palloc_flags pflags);
+unsigned hash_vm_frame(const struct hash_elem *hash, void *aux UNUSED);
+bool hash_compare_vm_frame(const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED);
+
 /* hashmap from phys_addr -> frame for efficient lookup */
 static struct hash frame_hashmap;
 
 unsigned
-hash_vm_frame(const struct hash_elem *hash, void *aux aux)
+hash_vm_frame(const struct hash_elem *hash, void *aux UNUSED)
 {
   const struct frame *frame;
   frame = hash_entry(hash, struct frame, h_elem);
@@ -27,23 +32,23 @@ hash_vm_frame(const struct hash_elem *hash, void *aux aux)
 }
 
 bool
-hash_compare_vm_frame(const struct hash_elem *a_, const struct hash_elem *b_, void *aux aux)
+hash_compare_vm_frame(const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED)
 {
-  const struct frame *a = hash_entry (a_, struct hash, h_elem);
-  const struct frame *b = hash_entry (b_, struct hash, h_elem);
+  const struct frame *a = hash_entry (a_, struct frame, h_elem);
+  const struct frame *b = hash_entry (b_, struct frame, h_elem);
 
   return (a->phys_addr < b->phys_addr);
 }
 
 struct frame*
-vm_frame_lookup (const void* phys_addr)
+vm_frame_lookup (void* phys_addr)
 {
   struct frame search_frame;
   struct hash_elem *hash;
 
   search_frame.phys_addr = phys_addr;
   hash = hash_find(&frame_hashmap, &search_frame.h_elem);
-  return e != NULL ? hash_entry (hash, struct frame, h_elem) : NULL; 
+  return hash != NULL ? hash_entry (hash, struct frame, h_elem) : NULL; 
 }
 
 
@@ -76,7 +81,6 @@ vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pfla
 
   // install page in pagedir of thread
   install_page(sup_page_entry->vm_addr, page, writable);
-
 
   list_push_back (&frame_list, &frame->l_elem);
   hash_insert (&frame_hashmap, &frame->h_elem);
@@ -119,12 +123,12 @@ void*
 evict_page(enum palloc_flags pflags){
   //TODO: check if this is necessary (b.c. we have to ensure that the list doesn't change during eviction)
   lock_acquire(&frame_lock);
-  if (list_empty(frame_list))
-    return;
+  if (list_empty(&frame_list))
+    return NULL;
 
-  struct list_elem *iterator = list_begin (frame_list);
+  struct list_elem *iterator = list_begin (&frame_list);
 
-  while (iterator != list_end (frame_list)){
+  while (iterator != list_end (&frame_list)){
       struct frame *f = list_entry (iterator, struct frame, l_elem);
 
       struct list_elem *removeElem = iterator;
@@ -133,13 +137,13 @@ evict_page(enum palloc_flags pflags){
       struct sup_page_entry *current_sup_page = f->sup_page_entry;
       struct thread *current_thread = current_sup_page->thread;
       // TODO: check if vm_addr has to be round_up or round_down
-      bool set = pagedir_is_accessed(current_thread->pagedir, sup_page_entry->vm_addr);
+      bool set = pagedir_is_accessed(current_thread->pagedir, current_sup_page->vm_addr);
       if (set){
         // page is accessed -> set accessed bit to 0
-         pagedir_set_accessed(current_thread->pagedir, sup_page_entry->vm_addr, false);
+         pagedir_set_accessed(current_thread->pagedir, current_sup_page->vm_addr, false);
       } else{
         // page is not accessed -> check if it is dirty
-        bool dirty = pagedir_is_dirty(current_thread->pagedir, sup_page_entry->vm_addr);
+        bool dirty = pagedir_is_dirty(current_thread->pagedir, current_sup_page->vm_addr);
         if (dirty){
           //TODO: treat this different if MMAP is used
 
@@ -148,12 +152,12 @@ evict_page(enum palloc_flags pflags){
           // TODO: add to swap table
           // TODO bad could be used by a function but this function would have to ensure that lock is hold
           list_remove(&f->l_elem);
-          hash_delete (&frame_hashmap, &found_frame->h_elem);
-          pagedir_clear_page(current_thread->pagedir, sup_page_entry->vm_addr);
+          hash_delete (&frame_hashmap, &f->h_elem);
+          pagedir_clear_page(current_thread->pagedir, current_sup_page->vm_addr);
           palloc_free_page(f->phys_addr);
-          sup_page_entry->status = PAGE_SWAPPED;
-          sup_page_entry->phys_addr = NULL;
-          uninstall_page(upage);
+          current_sup_page->status = PAGE_SWAPPED;
+          current_sup_page->phys_addr = NULL;
+          uninstall_page(current_sup_page->vm_addr);
           free(f);
           lock_release(&frame_lock);
           return palloc_get_page(pflags);

@@ -429,7 +429,8 @@ load (const char *file_name, void (**eip) (void), void **esp, char* argument_buf
 
 /* load() helpers. */
 
-static bool install_page (void *upage, void *kpage, bool writable);
+//TODO: check if it is possible to move this function to the header file
+//bool install_page (void *upage, void *kpage, bool writable);
 
 /* Checks whether PHDR describes a valid, loadable segment in
    FILE and returns true if so, false otherwise. */
@@ -678,7 +679,8 @@ setup_stack (void **esp, char *argument_buffer, int argcount)
    with palloc_get_page().
    Returns true on success, false if UPAGE is already mapped or
    if memory allocation fails. */
-static bool
+//TODO: check if it is okay to remove static 
+bool
 install_page (void *upage, void *kpage, bool writable)
 {
   struct thread *t = thread_current ();
@@ -694,7 +696,7 @@ install_page (void *upage, void *kpage, bool writable)
    UPAGE need not be mapped.
    Returns false if UPAGE is still mapped.
 */
-static bool
+bool
 uninstall_page (void* upage)
 {
   struct thread *t = thread_current();

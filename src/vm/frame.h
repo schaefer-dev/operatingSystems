@@ -29,7 +29,8 @@ void vm_frame_init(void);
 // TODO writable necessary here?
 void* vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pflags, bool writable);
 
-void vm_frame_free (void* phys_addr);
+void vm_frame_free (void* phys_addr, void* upage);
+struct frame* vm_frame_lookup (void* phys_addr);
 
 // TODO Pinning functions here? LOCK them!
 
