@@ -6,6 +6,7 @@
 #include "devices/block.h"
 #include "filesys/file.h"
 #include "threads/thread.h"
+#include <stdio.h>
 
 /* Different statuses the page can have */
 enum page_status
@@ -56,11 +57,11 @@ unsigned hash_vm_sup_page(const struct hash_elem *sup_p_, void *aux UNUSED);
 bool hash_compare_vm_sup_page(const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED);
 
 void vm_sup_page_init(struct thread *thread);
-bool vm_sup_page_allocate (void *vm_addr);
+bool vm_sup_page_allocate (void *vm_addr, bool writable);
 bool vm_sup_page_file_allocate (void *vm_addr, struct file* file, unsigned file_offset, bool writable);
 
 void vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED);
-struct sup_page_entry* vm_sup_page_lookup (const struct thread *thread, const void* vm_addr);
+struct sup_page_entry* vm_sup_page_lookup (struct thread *thread, void* vm_addr);
 void vm_sup_page_hashmap_close(struct thread *thread);
 
 

@@ -30,7 +30,7 @@ hash_compare_vm_sup_page(const struct hash_elem *a_, const struct hash_elem *b_,
 
 /* returns the sup_page_entry of thread, corresponding to passed vm_addr */
 struct sup_page_entry*
-vm_sup_page_lookup (const struct thread *thread, const void* vm_addr)
+vm_sup_page_lookup (struct thread *thread, void* vm_addr)
 {
   struct sup_page_entry search_sup_page_entry;
   struct hash_elem *hash;
@@ -87,7 +87,7 @@ vm_sup_page_init (struct thread *thread) {
 
 /* function to allocate a supplemental page table entry e.g. a stack*/
 bool
-vm_sup_page_allocate (void *vm_addr)
+vm_sup_page_allocate (void *vm_addr, bool writable)
 {
   // TODO Frame Loading happens in page fault, we use round down (defined in vaddr.h) 
   // to get the supplemental page using the sup_page_hashmap
@@ -99,11 +99,13 @@ vm_sup_page_allocate (void *vm_addr)
   sup_page_entry->phys_addr = NULL;
 
   sup_page_entry->vm_addr = vm_addr;
-  sup_page_entry->swap_addr = NULL;
+  //TODO: check if 0 is okay
+  sup_page_entry->swap_addr = 0;
   sup_page_entry->thread = current_thread;
   sup_page_entry->status = PAGE_NOT_LOADED;
   sup_page_entry->file = NULL;
   sup_page_entry->file_offset = 0;
+  sup_page_entry->writable = writable;
 
   /* check if there is already the same hash contained in the hashmap, in which case we abort! */
   struct hash_elem *prev_elem;
@@ -135,11 +137,12 @@ vm_sup_page_file_allocate (void *vm_addr, struct file* file, unsigned file_offse
   sup_page_entry->phys_addr = NULL;
 
   sup_page_entry->vm_addr = vm_addr;
-  sup_page_entry->swap_addr = NULL;
+  sup_page_entry->swap_addr = 0;
   sup_page_entry->thread = current_thread;
   sup_page_entry->status = PAGE_NOT_LOADED;
   sup_page_entry->file = file;
   sup_page_entry->file_offset = file_offset;
+  sup_page_entry->writable = writable;
 
   /* check if there is already the same hash contained in the hashmap, in which case we abort! */
   struct hash_elem *prev_elem;

@@ -6,6 +6,7 @@
 #include "threads/palloc.h"
 #include "vm/sup_page.h"
 #include "userprog/process.h"
+#include "vm/frame.h"
 
 
 /* lock to guarantee mutal exclusiveness on frame operations */

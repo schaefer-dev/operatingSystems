@@ -4,21 +4,24 @@
 #include "threads/synch.h"
 #include "lib/kernel/bitmap.h"
 #include <bitmap.h>
+#include "vm/swap.h"
+#include <stdio.h>
 
 // TODO some of these dont need to be static?
 static struct block *swap;
 static unsigned swap_size;
 
 /* Number of sectors necessary to store an entire page */
-static int SECTORS_FOR_PAGE = PGSIZE / BLOCK_SECTOR_SIZE;
+static uint32_t SECTORS_FOR_PAGE = PGSIZE / BLOCK_SECTOR_SIZE;
 
 static struct bitmap *swap_free_bitmap;
 
 static struct lock swap_lock;
 
+block_sector_t vm_swap_get_free(void);
 
 void 
-vm_swap_init()
+vm_swap_init(void)
 {
     swap = block_get_role(BLOCK_SWAP);
 
@@ -35,13 +38,14 @@ vm_swap_init()
 /* returns the first sector in which a page can be stored 
    calls Kernel Panic when not possible */
 block_sector_t
-vm_swap_get_free()
+vm_swap_get_free(void)
 {
     lock_acquire(&swap_lock);
     if (bitmap_all(swap_free_bitmap, 0, swap_size)){
         lock_release(&swap_lock);
         PANIC("SWAP is completely full!");
-        return;
+	//TODO: check if return 0 is okay
+        return 0;
     }
 
     /* get the first sector with SECTORS_FOR_PAGE successive free secors and sets these sectors to 
@@ -51,7 +55,8 @@ vm_swap_get_free()
     if (free_sector == BITMAP_ERROR){
         lock_release(&swap_lock);
         PANIC("No SWAP Block of sufficient size found!");
-        return;
+	//TODO: check if return 0 is okay
+        return 0;
     }
 
     lock_release(&swap_lock);
