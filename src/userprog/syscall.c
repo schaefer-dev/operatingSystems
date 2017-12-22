@@ -218,7 +218,6 @@ void
 validate_pointer(const void* pointer){
   uint32_t *pagedir = thread_current()->pagedir;
   void *frame_pointer = pg_round_down(pointer);
-  struct thread *thread = thread_current();
   if (pointer == NULL || !is_user_vaddr(pointer)){
     //if (pagedir_get_page(pagedir, pointer)==NULL)
       //printf("DEBUG: Validate pointer not found in pagedir");
@@ -235,10 +234,14 @@ validate_buffer(const void* buffer, unsigned size){
   //printf("DEBUG: Validate buffer start in syscall\n");
   unsigned i = 0;
   const char* buffer_iter = buffer;
+  struct thread *thread = thread_current();
   while (i < (size)){
     validate_pointer(buffer_iter + i);
     i += 1;
+    //if (vm_sup_page_lookup(thread, pg_round_down(buffer_iter + i)) == NULL)
+    //  syscall_exit(-1);
   }
+
   //printf("DEBUG: Validate buffer end in syscall\n");
 }
 
