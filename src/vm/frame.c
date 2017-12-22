@@ -82,7 +82,11 @@ vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pfla
   frame->pinned = false;
 
   // install page in pagedir of thread
-  install_page(sup_page_entry->vm_addr, page, writable);
+  if (!install_page(sup_page_entry->vm_addr, page, writable)){
+    /* page could not be added to pagedir, free frame and indicate file not loaded */
+    vm_frame_free (page, fault_frame_addr);
+    return NULL;
+  }
 
   list_push_back (&frame_list, &frame->l_elem);
   hash_insert (&frame_hashmap, &frame->h_elem);
