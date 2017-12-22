@@ -200,7 +200,7 @@ bool
 vm_load_file(void *fault_frame_addr){
   struct thread *thread = thread_current();
 
-  struct sup_page_entry sup_page = vm_sup_page_lookup(thread, fault_frame_addr);
+  struct sup_page_entry *sup_page = vm_sup_page_lookup(thread, fault_frame_addr);
 
   struct file *file = sup_page->file;
 
