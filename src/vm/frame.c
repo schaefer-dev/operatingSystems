@@ -149,7 +149,7 @@ evict_page(enum palloc_flags pflags){
               are placed in the swap partition 
           */
           palloc_free_page(f->phys_addr);
-          current_sup_page->status = PAGE_SWAPPED;
+          current_sup_page->status = PAGE_STATUS_SWAPPED;
           current_sup_page->phys_addr = NULL;
           // remove page from pagedir b.c. it is no longer loaded -> sets present bit to 0
           pagedir_clear_page(current_thread->pagedir, current_sup_page->vm_addr);

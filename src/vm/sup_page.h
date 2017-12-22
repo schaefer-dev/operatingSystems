@@ -15,19 +15,24 @@
 /* Different statuses the page can have */
 enum page_status
   {
-    PAGE_ZEROED = 1,              /* Page Zeroed */
-    PAGE_NOT_LOADED = 2,          /* page not loaded */
-    PAGE_LOADED = 4,              /* Page Loaded */
-    PAGE_SWAPPED = 8,             /* Page Eviced and writen to SWAP */
+    PAGE_STATUS_NOT_LOADED = 1,          /* page not loaded */
+    PAGE_STATUS_LOADED = 2,              /* Page Loaded */
+    PAGE_STATUS_SWAPPED = 4,             /* Page Eviced and writen to SWAP */
+  };
 
-    // TODO More page status possible? Is file correct?
-    PAGE_FILE = 16                 /* Page of File */
+/* Different types the page can have */
+enum page_type
+  {
+    PAGE_TYPE_FILE = 1,
+    PAGE_TYPE_STACK = 2,
+    PAGE_TYPE_MMAP = 4,
   };
 
 
 struct sup_page_entry
   {
     enum page_status status;
+    enum page_type type;
 
     /* physical address of supplemental page */
     void *phys_addr; 

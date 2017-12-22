@@ -188,7 +188,7 @@ page_fault (struct intr_frame *f)
       syscall_exit(-1);
     }
 
-  } else if ((sup_page_entry->status & PAGE_NOT_LOADED) != 0){
+  } else if ((sup_page_entry->status & PAGE_STATUS_NOT_LOADED) != 0){
       /* case page not loaded */
       // TODO load page here
       int todo = 0;

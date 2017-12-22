@@ -694,7 +694,9 @@ install_page (void *upage, void *kpage, bool writable)
 }
 
 
-/* Removes a mapping from user virtual address UPAGE to kernel to
+/* This function can only be called after the page upage has already been
+   Written to swap (or removed from physical memory in any way).
+   Removes a mapping from user virtual address UPAGE to kernel to
    kernel virtual address from the page table.
    UPAGE need not be mapped.
    Returns false if UPAGE is still mapped.
@@ -703,8 +705,8 @@ bool
 uninstall_page (void* upage)
 {
   struct thread *t = thread_current();
-  struct sup_page_entry* sup_page= vm_sup_page_lookup(t, upage);
-  if (sup_page->phys_addr != NULL || sup_page->status == PAGE_LOADED)
+  struct sup_page_entry* sup_page = vm_sup_page_lookup(t, upage);
+  if (sup_page->phys_addr != NULL || sup_page->status == PAGE_STATUS_LOADED)
     return false;
   pagedir_clear_page (t->pagedir, upage);
   return true;

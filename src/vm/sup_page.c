@@ -20,6 +20,7 @@ hash_vm_sup_page(const struct hash_elem *sup_p_, void *aux UNUSED)
   return hash_val;
 }
 
+
 /* Hash compare function for supplemental page table entries */
 bool
 hash_compare_vm_sup_page(const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED)
@@ -31,6 +32,7 @@ hash_compare_vm_sup_page(const struct hash_elem *a_, const struct hash_elem *b_,
 
   return result;
 }
+
 
 /* returns the sup_page_entry of thread, corresponding to passed vm_addr */
 struct sup_page_entry*
@@ -47,12 +49,14 @@ vm_sup_page_lookup (struct thread *thread, void *vm_addr)
   return hash != NULL ? hash_entry (hash, struct sup_page_entry, h_elem) : NULL; 
 }
 
+
 /* close the entire hashmap and free all ressources contained in it */
 void
 vm_sup_page_hashmap_close(struct thread *thread)
 {
   hash_destroy(&(thread->sup_page_hashmap), vm_sup_page_free);
 }
+
 
 /* free the ressources of the page with the corresponding hash_elem 
    this function should only be used by hash_destroy! */
@@ -63,15 +67,15 @@ vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED)
   struct sup_page_entry *lookup_sup_page_entry;
   lookup_sup_page_entry = hash_entry(hash, struct sup_page_entry, h_elem);
 
-  if (lookup_sup_page_entry->status == PAGE_SWAPPED){
+  if (lookup_sup_page_entry->status == PAGE_STATUS_SWAPPED){
     /* Case of the Page content swapped */ 
     // TODO 
 
-  } else if (lookup_sup_page_entry->status == PAGE_LOADED){
+  } else if (lookup_sup_page_entry->status == PAGE_STATUS_LOADED){
     /* Case of the Page content in physical Memory */
     // TODO 
 
-  } else if (lookup_sup_page_entry->status == PAGE_NOT_LOADED){
+  } else if (lookup_sup_page_entry->status == PAGE_STATUS_NOT_LOADED){
     /* Case of the Page content not loaded */
     // TODO
 
@@ -108,7 +112,8 @@ vm_sup_page_allocate (void *vm_addr, bool writable)
   //TODO: check if 0 is okay
   sup_page_entry->swap_addr = 0;
   sup_page_entry->thread = current_thread;
-  sup_page_entry->status = PAGE_NOT_LOADED;
+  sup_page_entry->status = PAGE_STATUS_NOT_LOADED;
+  sup_page_entry->type = PAGE_TYPE_STACK;
   sup_page_entry->file = NULL;
   sup_page_entry->file_offset = 0;
   sup_page_entry->writable = writable;
@@ -145,7 +150,8 @@ vm_sup_page_file_allocate (void *vm_addr, struct file* file, off_t file_offset, 
   sup_page_entry->vm_addr = vm_addr;
   sup_page_entry->swap_addr = 0;
   sup_page_entry->thread = current_thread;
-  sup_page_entry->status = PAGE_NOT_LOADED | PAGE_FILE;
+  sup_page_entry->status = PAGE_STATUS_NOT_LOADED;
+  sup_page_entry->type = PAGE_TYPE_FILE;
   sup_page_entry->file = file;
   sup_page_entry->file_offset = file_offset;
   sup_page_entry->read_bytes = read_bytes;
@@ -179,9 +185,12 @@ vm_grow_stack(void *fault_frame_addr){
 
     void *page = vm_frame_allocate(sup_page_entry, (PAL_ZERO | PAL_USER) , true);
 
-    //TODO: for debug check if *page==NULL -> kernel panic 
+    if (page == NULL){
+      printf("stack growth could not allocate page!\n");
+      return false;
+    }
 
-    sup_page_entry ->status = PAGE_LOADED;
+    sup_page_entry->status = PAGE_STATUS_LOADED;
 
     return true;
 
@@ -197,7 +206,6 @@ vm_load_swap(void *fault_frame_addr){
 
 }
 
-//TODO: implement this function
 /* implementation of load file called by page fault handler */
 bool 
 vm_load_file(void *fault_frame_addr){
@@ -215,9 +223,12 @@ vm_load_file(void *fault_frame_addr){
 
   void *page = vm_frame_allocate(vm_sup_page_lookup(thread, fault_frame_addr), (PAL_ZERO | PAL_USER) , writable);
 
-  //TODO: for debug check if *page==NULL -> kernel panic
+  if (page == NULL){
+    printf("load file could not allocate page!\n");
+    return false;
+  }
 
-  if (read_bytes!=0){
+  if (read_bytes != 0){
     lock_acquire(&lock_filesystem);
     off_t file_read_bytes = file_read_at (file, page, read_bytes, file_offset);
     lock_release(&lock_filesystem);
@@ -229,7 +240,7 @@ vm_load_file(void *fault_frame_addr){
   }
 
   /*indicate that frame is now loaded */
-  sup_page->status = PAGE_LOADED;
+  sup_page->status = PAGE_STATUS_LOADED;
 
   return true;
 }
