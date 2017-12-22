@@ -235,6 +235,7 @@ vm_load_file(void *fault_frame_addr){
     if (file_read_bytes!= read_bytes){
       /* file not correctly read, free frame and indicate file not loaded */
       vm_frame_free (page, fault_frame_addr);
+      //printf("DEBUG: file not correctly read in load_file!\n");
       return false;
     }
   }
@@ -242,6 +243,7 @@ vm_load_file(void *fault_frame_addr){
   /*indicate that frame is now loaded */
   sup_page->status = PAGE_STATUS_LOADED;
 
+  //printf("DEBUG: load_file finished cleanly!\n");
   return true;
 }
 

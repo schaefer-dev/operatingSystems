@@ -141,8 +141,6 @@ page_fault (struct intr_frame *f)
      (#PF)". */
   asm ("movl %%cr2, %0" : "=r" (fault_addr));
 
-  //printf("DEBUG: Page Fault happened!\n");
-
   /* Turn interrupts back on (they were only off so that we could
      be assured of reading CR2 before it changed). */
   intr_enable ();
@@ -154,6 +152,8 @@ page_fault (struct intr_frame *f)
   not_present = (f->error_code & PF_P) == 0;
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
+
+  //printf("DEBUG: Page Fault happened! AT:%p \n", fault_addr);
 
   /* notify parent about syscall */
   // TODO check if user and page not user or if pointer null or if writing to read only page
@@ -179,7 +179,7 @@ page_fault (struct intr_frame *f)
 
   // TODO not sure if we have to use faul_frame_addr or fault_addr here!
   struct sup_page_entry *sup_page_entry = vm_sup_page_lookup (thread, fault_frame_addr);
-  //printf("DEBUG: sup_page allocated at vaddr: %p\n", upage);
+  //printf("DEBUG: sup_page allocated at vaddr: %p\n", fault_frame_addr);
 
 
   if (sup_page_entry == NULL){
@@ -202,7 +202,7 @@ page_fault (struct intr_frame *f)
       // TODO implement loading from MMAP
 
     } else {
-      //printf("Page not loaded, but of illegal type!\n");
+      printf("Page not loaded, but of illegal type!\n");
     }
 
   } else if ((sup_page_entry->status & PAGE_STATUS_SWAPPED) != 0){

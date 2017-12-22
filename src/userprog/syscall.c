@@ -58,6 +58,8 @@ syscall_handler (struct intr_frame *f UNUSED)
 
   validate_pointer(esp);
 
+  //printf("DEBUG: Syscall_handler started \n");
+
   /* syscall type int is stored at adress esp */
   int32_t syscall_type = *((int*)esp);
 
@@ -111,9 +113,11 @@ syscall_handler (struct intr_frame *f UNUSED)
 
     case SYS_OPEN:
       {
+        //printf("DEBUG: Syscall OPEN start\n");
         char *file_name= *((char**) read_argument_at_index(f,0));
         validate_pointer(file_name);
         f->eax = syscall_open(file_name);
+        //printf("DEBUG: Syscall OPEN end\n");
         break;
       }
 
@@ -126,21 +130,25 @@ syscall_handler (struct intr_frame *f UNUSED)
 
     case SYS_READ:
       {
+        //printf("DEBUG: Syscall READ start\n");
         int fd = *((int*)read_argument_at_index(f,0)); 
         void *buffer = *((void**)read_argument_at_index(f,sizeof(int))); 
         unsigned size = *((unsigned*)read_argument_at_index(f,2*sizeof(int))); 
         int returnvalue = syscall_read(fd, buffer, size);
         f->eax = returnvalue;
+        //printf("DEBUG: Syscall READ end\n");
       }
       break;
 
     case SYS_WRITE:
       {
+        //printf("DEBUG: Syscall WRITE start\n");
         int fd = *((int*)read_argument_at_index(f,0)); 
         void *buffer = *((void**)read_argument_at_index(f,sizeof(int))); 
         unsigned size = *((unsigned*)read_argument_at_index(f,2*sizeof(int))); 
         int returnvalue = syscall_write(fd, buffer, size);
         f->eax = returnvalue;
+        //printf("DEBUG: Syscall WRITE start\n");
         break;
       }
 
@@ -200,6 +208,7 @@ syscall_handler (struct intr_frame *f UNUSED)
         break;
       }
     }
+  //printf("DEBUG: Syscall_handler left \n");
 }
 
 
@@ -208,7 +217,12 @@ syscall_handler (struct intr_frame *f UNUSED)
 void
 validate_pointer(const void* pointer){
   uint32_t *pagedir = thread_current()->pagedir;
-  if (pointer == NULL || !is_user_vaddr(pointer) || pagedir_get_page(pagedir, pointer)==NULL){
+  void *frame_pointer = pg_round_down(pointer);
+  struct thread *thread = thread_current();
+  if (pointer == NULL || !is_user_vaddr(pointer)){
+    //if (pagedir_get_page(pagedir, pointer)==NULL)
+      //printf("DEBUG: Validate pointer not found in pagedir");
+      //printf("DEBUG: Validate pointer fail in syscall\n");
     syscall_exit(-1);
   }
 }
@@ -218,12 +232,14 @@ validate_pointer(const void* pointer){
    context */
 void
 validate_buffer(const void* buffer, unsigned size){
+  //printf("DEBUG: Validate buffer start in syscall\n");
   unsigned i = 0;
   const char* buffer_iter = buffer;
   while (i < (size)){
     validate_pointer(buffer_iter + i);
     i += 1;
   }
+  //printf("DEBUG: Validate buffer end in syscall\n");
 }
 
 
@@ -231,6 +247,7 @@ validate_buffer(const void* buffer, unsigned size){
    context, otherwise returns length of string */
 int
 validate_string(const char* buffer){
+  //printf("DEBUG: Validate string start in syscall\n");
   int length = 0;
   const char* buffer_iter = buffer;
   validate_pointer(buffer_iter);
@@ -243,6 +260,7 @@ validate_string(const char* buffer){
     validate_pointer(buffer_iter);
   }
 
+  //printf("DEBUG: Validate string end in syscall\n");
   return length;
 }
 
@@ -285,6 +303,9 @@ syscall_exit(const int exit_type){
     }
   }
 
+  if (lock_held_by_current_thread(&lock_filesystem))
+    lock_release(&lock_filesystem);
+
   /* close all files in this thread and free ressources */
   clear_files();
 
@@ -320,6 +341,7 @@ syscall_write(int fd, const void *buffer, unsigned size){
       returnvalue = 0;
     }else{
       lock_acquire(&lock_filesystem);
+      // TODO page faults here cause deadlock!
       returnvalue = file_write(file_, buffer, size);
       lock_release(&lock_filesystem);
     }
@@ -367,6 +389,7 @@ syscall_read(int fd, void *buffer, unsigned size){
       returnvalue = 0;
     }else{
       lock_acquire(&lock_filesystem);
+      // TODO page faults here cause deadlock!
       returnvalue = file_read(file_, buffer, size);
       lock_release(&lock_filesystem);
     }
