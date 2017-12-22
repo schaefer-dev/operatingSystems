@@ -6,6 +6,7 @@
 #include "threads/malloc.h"
 #include "filesys/file.h"
 #include "vm/sup_page.h"
+#include "userprog/process.h"
 
 /* Hash function for supplemental page table entries */
 unsigned
@@ -168,6 +169,9 @@ vm_grow_stack(void *fault_frame_addr){
   vm_sup_page_allocate(fault_frame_addr, true);
 
   void *page = vm_frame_allocate(vm_sup_page_lookup(thread, fault_frame_addr), (PAL_ZERO | PAL_USER) , true);
+
+  /* page has to be added to pagedir */
+  install_page (fault_frame_addr, page, true);
 }
 
 
