@@ -58,8 +58,6 @@ struct sup_page_entry
     struct hash_elem h_elem;
   };
 
-void vm_grow_stack(void *fault_frame_addr);
-
 unsigned hash_vm_sup_page(const struct hash_elem *sup_p_, void *aux UNUSED);
 bool hash_compare_vm_sup_page(const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED);
 
