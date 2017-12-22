@@ -85,6 +85,9 @@ start_process (void *file_name_)
 
   char *cmdline = "";
 
+  struct thread *current_thread = thread_current();
+  vm_sup_page_init(&(current_thread->sup_page_hashmap));
+
   /* write all tokens split by space(s) to current_argument_space */
   for (token = strtok_r (file_name, " ", &save_ptr); token != NULL;
       token = strtok_r (NULL, " ", &save_ptr))
@@ -204,6 +207,7 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+  vm_sup_page_hashmap_close(cur);
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -429,9 +433,6 @@ load (const char *file_name, void (**eip) (void), void **esp, char* argument_buf
 
 /* load() helpers. */
 
-//TODO: check if it is possible to move this function to the header file
-//bool install_page (void *upage, void *kpage, bool writable);
-
 /* Checks whether PHDR describes a valid, loadable segment in
    FILE and returns true if so, false otherwise. */
 static bool
@@ -536,18 +537,15 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   return true;
 }
 
+
 /* Loads a segment starting at offset OFS in FILE at address
    UPAGE.  In total, READ_BYTES + ZERO_BYTES bytes of virtual
    memory are initialized, as follows:
-
         - READ_BYTES bytes at UPAGE must be read from FILE
           starting at offset OFS.
-
         - ZERO_BYTES bytes at UPAGE + READ_BYTES must be zeroed.
-
    The pages initialized by this function must be writable by the
    user process if WRITABLE is true, read-only otherwise.
-
    Return true if successful, false if a memory allocation error
    or disk read error occurs. */
 static bool
@@ -670,6 +668,7 @@ setup_stack (void **esp, char *argument_buffer, int argcount)
   return success;
 }
 
+
 /* Adds a mapping from user virtual address UPAGE to kernel
    virtual address KPAGE to the page table.
    If WRITABLE is true, the user process may modify the page;
@@ -679,7 +678,6 @@ setup_stack (void **esp, char *argument_buffer, int argcount)
    with palloc_get_page().
    Returns true on success, false if UPAGE is already mapped or
    if memory allocation fails. */
-//TODO: check if it is okay to remove static 
 bool
 install_page (void *upage, void *kpage, bool writable)
 {
@@ -690,6 +688,7 @@ install_page (void *upage, void *kpage, bool writable)
   return (pagedir_get_page (t->pagedir, upage) == NULL
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
+
 
 /* Removes a mapping from user virtual address UPAGE to kernel to
    kernel virtual address from the page table.

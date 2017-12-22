@@ -112,7 +112,8 @@ vm_frame_free (void* phys_addr, void* upage)
 
   //TODO: possibly this has to be removed and the original function to clear pages has to be used
   // possibly pagedir doesn't exist anymore??
-  uninstall_page(upage);
+  //TODO comment this in again!
+  //uninstall_page(upage);
 
   free(found_frame);
 
