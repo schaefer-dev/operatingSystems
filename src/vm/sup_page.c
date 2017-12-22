@@ -10,6 +10,7 @@
 #include "threads/synch.h"
 #include "userprog/syscall.h"
 #include "filesys/file.h"
+#include "vm/swap.h"
 
 /* Hash function for supplemental page table entries */
 unsigned
@@ -203,6 +204,27 @@ vm_grow_stack(void *fault_frame_addr){
 /* implementation of load from swap partition called by page fault handler */
 bool 
 vm_load_swap(void *fault_frame_addr){
+  struct thread *thread = thread_current();
+
+  struct sup_page_entry *sup_page = vm_sup_page_lookup(thread, fault_frame_addr);
+
+  block_sector_t swap_addr = sup_page -> swap_addr;
+
+  bool writable = sup_page->writable;
+
+  void *page = vm_frame_allocate(vm_sup_page_lookup(thread, fault_frame_addr), (PAL_ZERO | PAL_USER) , writable);
+
+  if (page == NULL){
+    printf("load file could not allocate page!\n");
+    return false;
+  }
+
+  vm_swap_back(swap_addr, page);
+
+  /*indicate that frame is now loaded */
+  sup_page->status = PAGE_STATUS_LOADED;
+
+  return true;
 
 }
 
