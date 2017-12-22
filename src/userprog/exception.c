@@ -208,10 +208,8 @@ page_fault (struct intr_frame *f)
     }
 
   } else if ((sup_page_entry->status & PAGE_STATUS_SWAPPED) != 0){
-      /* case page swapped */
-      // TODO load page from swap here
-      int todo = 0;
-      syscall_exit(-1);
+      /* case page swapped -> load from swap to phys memory */
+      vm_load_swap(fault_frame_addr);
 
   } else if (pagedir_get_page (thread->pagedir, fault_addr) == false){
     syscall_exit(-1);
