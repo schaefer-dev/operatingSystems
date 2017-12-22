@@ -45,6 +45,7 @@ struct sup_page_entry
     off_t file_offset;
 
     /* size of read_bytes in file at position file_offset*/
+    off_t read_bytes;
 
     /* file from which we read our data */
     struct file *file;
