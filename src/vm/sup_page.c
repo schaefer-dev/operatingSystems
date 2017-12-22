@@ -237,12 +237,6 @@ vm_load_file(void *fault_frame_addr){
     }
   }
 
-  if (!install_page(fault_frame_addr, page, writable)){
-    /* page could not be added to pagedir, free frame and indicate file not loaded */
-    vm_frame_free (page, fault_frame_addr);
-    return false;
-  }
-
   /*indicate that frame is now loaded */
   sup_page->status = PAGE_LOADED;
 
