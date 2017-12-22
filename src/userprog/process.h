@@ -37,6 +37,6 @@ void process_exit (void);
 void process_activate (void);
 struct child_process* get_child(pid_t pid);
 bool install_page (void *upage, void *kpage, bool writable);
-bool uninstall_page (void *upage);
+void uninstall_page (void *upage);
 
 #endif /* userprog/process.h */

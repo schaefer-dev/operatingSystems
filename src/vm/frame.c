@@ -6,6 +6,7 @@
 #include "userprog/process.h"
 #include "vm/frame.h"
 #include "userprog/pagedir.h"
+#include "vm/swap.h"
 
 
 /* lock to guarantee mutal exclusiveness on frame operations */
@@ -14,7 +15,7 @@ static struct lock frame_lock;
 /* list of all frames */
 static struct list frame_list;
 
-void* evict_page(enum palloc_flags pflags);
+void* vm_evict_page(enum palloc_flags pflags);
 
 // TODO implement hash map again for faster frame lookup
 
@@ -63,7 +64,7 @@ vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pfla
     // Frame allocation Failed
     // TODO evice page here to make room
     // TODO lock is hold at this place so evict_page shouldn't acquire the lock check if this is a good idea
-    return NULL;
+    page = vm_evict_page(PAL_USER | pflags);
   }
 
   struct frame *frame = malloc(sizeof(struct frame));
@@ -80,7 +81,10 @@ vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pfla
   return page;
 }
 
-//TODO: check if we have to set status and phys address of sub_page_entry
+/* called from vm_sup_page_free if page is currently loaded
+   in frames. 
+   Frees the frame structure and removes it from pagedir of
+   the current thread. */
 void 
 vm_frame_free (void* phys_addr, void* upage)
 {
@@ -95,14 +99,8 @@ vm_frame_free (void* phys_addr, void* upage)
   }
 
   list_remove (&found_frame->l_elem);
-
   palloc_free_page(phys_addr);
-
-  //TODO: possibly this has to be removed and the original function to clear pages has to be used
-  // possibly pagedir doesn't exist anymore??
-  //TODO comment this in again!
-  //uninstall_page(upage);
-
+  uninstall_page(upage);
   free(found_frame);
 
   lock_release (&frame_lock);
@@ -110,66 +108,68 @@ vm_frame_free (void* phys_addr, void* upage)
 }
 
 
+/* search for a page to evict in physical memory and returns the adress 
+   of the eviced page which can now be written on.
+   Evict_page can only be called when the frame lock is currently held */
 void*
-evict_page(enum palloc_flags pflags){
-  //TODO: check if this is necessary (b.c. we have to ensure that the list doesn't change during eviction)
-  lock_acquire(&frame_lock);
-  if (list_empty(&frame_list))
-    return NULL;
+vm_evict_page(enum palloc_flags pflags){
+  ASSERT (lock_held_by_current_thread(&frame_lock));
+  ASSERT (! list_empty(&frame_list));
 
   struct list_elem *iterator = list_begin (&frame_list);
 
-  // iterate over all frames until a frame is not accessed (could be more than iteration)
-  while (iterator != list_end (&frame_list)){
-      struct frame *f = list_entry (iterator, struct frame, l_elem);
-
-      struct sup_page_entry *current_sup_page = f->sup_page_entry;
-      struct thread *current_thread = current_sup_page->thread;
+  /* iterate over all frames until a frame is not accessed 
+     (could be more than iteration) */
+  // TODO do we "restart" clock algorithm with every evict start, or do we keep the iterator where we found a free page last time
+  while (true){
+      struct frame *iter_frame = list_entry (iterator, struct frame, l_elem);
+      struct sup_page_entry *iter_sup_page = iter_frame->sup_page_entry;
+      struct thread *page_thread = iter_sup_page->thread;
       // TODO: check if vm_addr has to be round_up or round_down
       // check if access bit is 0
-      bool set = pagedir_is_accessed(current_thread->pagedir, current_sup_page->vm_addr);
-      if (set){
-        // page is accessed -> set accessed bit to 0 and don't evict this page in this iteration
-         pagedir_set_accessed(current_thread->pagedir, current_sup_page->vm_addr, false);
-      } else{
+      bool accessed_bit = pagedir_is_accessed(page_thread->pagedir, iter_sup_page->vm_addr);
+      if (accessed_bit){
+         /* page was accessed since previous iteration -> set accessed bit to 0 
+            and don't evict this page in this iteration */
+         pagedir_set_accessed(page_thread->pagedir, iter_sup_page->vm_addr, false);
+      } else {
         // page is not accessed (can be evicted)-> check if it is dirty
-        // TODO add swap stuff
-        bool dirty = pagedir_is_dirty(current_thread->pagedir, current_sup_page->vm_addr);
+        bool dirty = pagedir_is_dirty(page_thread->pagedir, iter_sup_page->vm_addr);
         if (dirty){
           //TODO: treat this different if MMAP is used
 
         } else {
           // file is not dirty and not accessed -> simply free frame
-          // TODO: add to swap table
-          // TODO bad could be used by a function but this function would have to ensure that lock is hold
+          vm_swap_page(iter_frame->phys_addr);
 
           // remove frame from list
-          list_remove(&f->l_elem);
+          list_remove(&iter_frame->l_elem);
           /* free page and set phys_addr in sup_page to NULL and status to swapped b.c. the data of the frame
               are placed in the swap partition 
           */
-          palloc_free_page(f->phys_addr);
-          current_sup_page->status = PAGE_STATUS_SWAPPED;
-          current_sup_page->phys_addr = NULL;
-          // remove page from pagedir b.c. it is no longer loaded -> sets present bit to 0
-          pagedir_clear_page(current_thread->pagedir, current_sup_page->vm_addr);
+          palloc_free_page(iter_frame->phys_addr);
+          iter_sup_page->status = PAGE_STATUS_SWAPPED;
+          iter_sup_page->phys_addr = NULL;
+
+          pagedir_clear_page(page_thread->pagedir, iter_sup_page->vm_addr);
           // delete the frame entry and allocate a new page
-          free(f);
-          void* phys_addr = palloc_get_page(pflags|PAL_ZERO);
-          // release lock and return phys addr of frame
-          lock_release(&frame_lock);
+          free(iter_frame);
+
+          void* phys_addr = palloc_get_page(pflags | PAL_ZERO);
           return phys_addr;
         }
       }
+
+
       // page was accessed -> look at next frame if accessed
       iterator = list_next(iterator);
       if (iterator == list_end (&frame_list)){
-        // all pages were accssed -> start again with first element to find a page which was not accessed recently
+        /* all pages were accessed -> start again with first element to find 
+           a page which was not accessed recently */
         iterator = list_begin(&frame_list);
       }  
   }
   // should never be reached
-  lock_release(&frame_lock);
   return NULL;
 }
 

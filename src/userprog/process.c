@@ -516,7 +516,7 @@ load_segment_not_lazy (struct file *file, off_t ofs, uint8_t *upage,
       struct thread *thread = thread_current();
 
       if (!success)
-        printf("DEBUG: page could not be allocated in load_segment \n");
+        printf("page could not be allocated in load_segment \n");
 
       struct sup_page_entry *sup_page_entry = vm_sup_page_lookup(thread, upage);
       
@@ -558,7 +558,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
-  //printf("Load segment called!\n");
+  //printf("DEBUG: Load segment called!\n");
 
   file_seek (file, ofs);
   while (read_bytes > 0 || zero_bytes > 0) 
@@ -572,7 +572,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* Add page to supplemental page table */
       //TODO ensure if page is loaded ZERO bytes are added simply use PAL_ZERO in every palloc_get_page?
       if (!vm_sup_page_file_allocate (upage, file, ofs, page_read_bytes, writable)){
-        //printf("Load segment failed!\n");
+        //printf("DEBUG: Load segment failed!\n");
         return false;
       }
       //printf("DEBUG: sup_page allocated at vaddr: %p\n", upage);
@@ -584,7 +584,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
     }
-  //printf("Load segment success!\n");
+  //printf("DEBUG: Load segment success!\n";
   return true;
 }
 
@@ -698,22 +698,15 @@ install_page (void *upage, void *kpage, bool writable)
 }
 
 
-/* This function can only be called after the page upage has already been
-   Written to swap (or removed from physical memory in any way).
-   Removes a mapping from user virtual address UPAGE to kernel to
-   kernel virtual address from the page table.
-   UPAGE need not be mapped.
-   Returns false if UPAGE is still mapped.
-*/
-bool
+/* uninstalls mapping at virtual adress upage, from pagedirectory
+   of current thread */
+void
 uninstall_page (void* upage)
 {
-  struct thread *t = thread_current();
-  struct sup_page_entry* sup_page = vm_sup_page_lookup(t, upage);
-  if (sup_page->phys_addr != NULL || sup_page->status == PAGE_STATUS_LOADED)
-    return false;
-  pagedir_clear_page (t->pagedir, upage);
-  return true;
+  struct thread *thread = thread_current();
+  struct sup_page_entry* sup_page = vm_sup_page_lookup(thread, upage);
+
+  pagedir_clear_page (thread->pagedir, upage);
 }
 
 
