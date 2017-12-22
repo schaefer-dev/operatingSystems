@@ -1,5 +1,4 @@
 #include <hash.h>
-#include "lib/kernel/hash.h"
 #include <list.h>
 #include "lib/kernel/list.h"
 #include "threads/palloc.h"
@@ -40,12 +39,9 @@ vm_sup_page_lookup (struct thread *thread, void *vm_addr)
   struct sup_page_entry search_sup_page_entry;
   struct hash_elem *hash;
 
-  printf("vm_sup_page lookup 1\n");
 
   search_sup_page_entry.vm_addr = vm_addr;
-  printf("vm_sup_page lookup 2\n");
   hash = hash_find(&(thread->sup_page_hashmap), &(search_sup_page_entry.h_elem));
-  printf("vm_sup_page lookup 3\n");
   
   // TODO refactor this line!
   return hash != NULL ? hash_entry (hash, struct sup_page_entry, h_elem) : NULL; 
@@ -92,10 +88,6 @@ vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED)
 void
 vm_sup_page_init (struct thread *thread) {
   bool success = hash_init(&thread->sup_page_hashmap, hash_vm_sup_page, hash_compare_vm_sup_page, NULL);
-  if (success)
-    printf("DEBUG: hash_init worked\n");
-  else 
-    printf("DEBUG: hash_init did not work\n");
 }
 
 
@@ -178,7 +170,6 @@ vm_sup_page_file_allocate (void *vm_addr, struct file* file, off_t file_offset, 
 /* implementation of stack growth called by page fault handler */
 bool
 vm_grow_stack(void *fault_frame_addr){
-  printf("stack growth reached! \n");
   
   struct thread *thread = thread_current();
 

@@ -7,7 +7,7 @@
 #include "vm/sup_page.h"
 #include "userprog/process.h"
 #include "threads/synch.h"
-#include "lib/kernel/hash.h"
+#include <hash.h>
 #include "vm/sup_page.h"
 
 /* States in a thread's life cycle. */

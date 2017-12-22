@@ -86,7 +86,7 @@ start_process (void *file_name_)
   char *cmdline = "";
 
   struct thread *current_thread = thread_current();
-  vm_sup_page_init(&(current_thread->sup_page_hashmap));
+  vm_sup_page_init(current_thread);
 
   /* write all tokens split by space(s) to current_argument_space */
   for (token = strtok_r (file_name, " ", &save_ptr); token != NULL;

@@ -1,7 +1,7 @@
 #ifndef VM_SUP_PAGE_H
 #define VM_SUP_PAGE_H
 
-#include "lib/kernel/hash.h"
+#include <hash.h>
 #include "threads/palloc.h"
 #include "devices/block.h"
 #include "filesys/file.h"

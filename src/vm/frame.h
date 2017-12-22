@@ -1,8 +1,9 @@
 #ifndef VM_FRAME_H
 #define VM_FRAME_H
 
-#include "lib/kernel/hash.h"
 #include "threads/palloc.h"
+#include <stdbool.h>
+#include <list.h>
 
 struct frame
   {
@@ -21,7 +22,6 @@ struct frame
     //struct thread *thread;
 
     struct list_elem l_elem;
-    struct hash_elem h_elem;
   };
 
 void vm_frame_init(void);

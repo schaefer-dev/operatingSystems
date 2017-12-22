@@ -15,51 +15,39 @@ static struct lock frame_lock;
 static struct list frame_list;
 
 void* evict_page(enum palloc_flags pflags);
-unsigned hash_vm_frame(const struct hash_elem *hash, void *aux UNUSED);
-bool hash_compare_vm_frame(const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED);
 
-
-unsigned
-hash_vm_frame(const struct hash_elem *hash, void *aux UNUSED)
-{
-  struct frame *frame;
-  frame = hash_entry(hash, struct frame, h_elem);
-  return hash_bytes(&frame->phys_addr, sizeof(frame->phys_addr));
-}
-
-
-bool
-hash_compare_vm_frame(const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED)
-{
-  const struct frame *a = hash_entry (a_, struct frame, h_elem);
-  const struct frame *b = hash_entry (b_, struct frame, h_elem);
-
-  return (a->phys_addr < b->phys_addr);
-}
+// TODO implement hash map again for faster frame lookup
 
 
 struct frame*
 vm_frame_lookup (void* phys_addr)
 {
-  struct frame search_frame;
-  struct hash_elem *hash;
+  //TODO check that frame lock is currently held when calling this function
+  struct frame *return_frame = NULL;
+  struct list_elem *iterator;
 
-  search_frame.phys_addr = phys_addr;
-  hash = hash_find(&frame_hashmap, &search_frame.h_elem);
-  return hash != NULL ? hash_entry (hash, struct frame, h_elem) : NULL; 
+  iterator = list_begin(&frame_list);
+
+  while (iterator != list_end(&frame_list)){
+    struct frame *search_frame;
+    search_frame = list_entry(iterator, struct frame, l_elem);
+    if (search_frame->phys_addr == phys_addr){
+      return_frame = search_frame;
+      break;
+    }
+    iterator = list_next(iterator);
+  }
+
+  return return_frame;
 }
 
 
 void
 vm_frame_init () {
-  printf("DEBUG: frame_init start \n");
   lock_init (&frame_lock);
-  printf("DEBUG: frame lock init passed \n");
   list_init (&frame_list);
-  printf("DEBUG: frame list init passed \n");
-  hash_init(&frame_hashmap, hash_vm_frame, hash_compare_vm_frame, NULL);
-  printf("DEBUG: frame_init end \n");
 }
+
 
 //TODO: add page to pagedir of the corresponding thread
 //TODO: check if this function should simply return the reference to the frame b.c. there are different ways to load (files, mmap, swap...)
@@ -84,14 +72,9 @@ vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pfla
   frame->pinned = false;
 
   // install page in pagedir of thread
-  if (!install_page(sup_page_entry->vm_addr, page, writable)){
-    /* page could not be added to pagedir, free frame and indicate file not loaded */
-    vm_frame_free (page, fault_frame_addr);
-    return NULL;
-  }
+  install_page(sup_page_entry->vm_addr, page, writable);
 
   list_push_back (&frame_list, &frame->l_elem);
-  hash_insert (&frame_hashmap, &frame->h_elem);
 
   lock_release (&frame_lock);
   return page;
@@ -111,7 +94,6 @@ vm_frame_free (void* phys_addr, void* upage)
     return;
   }
 
-  hash_delete (&frame_hashmap, &found_frame->h_elem);
   list_remove (&found_frame->l_elem);
 
   palloc_free_page(phys_addr);
@@ -161,9 +143,8 @@ evict_page(enum palloc_flags pflags){
           // TODO: add to swap table
           // TODO bad could be used by a function but this function would have to ensure that lock is hold
 
-          // remove frame from list and hashmap
+          // remove frame from list
           list_remove(&f->l_elem);
-          hash_delete (&frame_hashmap, &f->h_elem);
           /* free page and set phys_addr in sup_page to NULL and status to swapped b.c. the data of the frame
               are placed in the swap partition 
           */
