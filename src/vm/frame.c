@@ -6,6 +6,7 @@
 #include "userprog/process.h"
 #include "vm/frame.h"
 #include "userprog/pagedir.h"
+#include "vm/swap.h"
 
 
 /* lock to guarantee mutal exclusiveness on frame operations */
@@ -14,7 +15,7 @@ static struct lock frame_lock;
 /* list of all frames */
 static struct list frame_list;
 
-void* evict_page(enum palloc_flags pflags);
+void* vm_evict_page(enum palloc_flags pflags);
 
 // TODO implement hash map again for faster frame lookup
 
@@ -63,7 +64,7 @@ vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pfla
     // Frame allocation Failed
     // TODO evice page here to make room
     // TODO lock is hold at this place so evict_page shouldn't acquire the lock check if this is a good idea
-    return NULL;
+    page = vm_evict_page(PAL_USER | pflags);
   }
 
   struct frame *frame = malloc(sizeof(struct frame));
@@ -111,7 +112,7 @@ vm_frame_free (void* phys_addr, void* upage)
    of the eviced page which can now be written on.
    Evict_page can only be called when the frame lock is currently held */
 void*
-evict_page(enum palloc_flags pflags){
+vm_evict_page(enum palloc_flags pflags){
   ASSERT (lock_held_by_current_thread(&frame_lock));
   ASSERT (! list_empty(&frame_list));
 
@@ -139,7 +140,7 @@ evict_page(enum palloc_flags pflags){
 
         } else {
           // file is not dirty and not accessed -> simply free frame
-          // TODO: add to swap table
+          vm_swap_page(iter_frame->phys_addr);
 
           // remove frame from list
           list_remove(&iter_frame->l_elem);

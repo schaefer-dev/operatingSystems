@@ -67,7 +67,7 @@ vm_swap_get_free(void)
 /* writes the page into the first sector in which a page can be stored 
    calls Kernel Panic when not possible */
 block_sector_t
-vm_swap_page(void *page)
+vm_swap_page(void *phys_addr)
 {
     // TODO verify page reference? is_uservaddr?
     // TODO maybe we have to lock here, but vm_swap_get_free might be sufficient!
@@ -80,7 +80,7 @@ vm_swap_page(void *page)
         /* block_write Internally synchronizes accesses to block devices, so
            external per-block device locking is unneeded. */
         block_write(swap, free_sector + sector_iterator,
-                    page + (BLOCK_SECTOR_SIZE * sector_iterator));
+                    phys_addr + (BLOCK_SECTOR_SIZE * sector_iterator));
     }
 
     bitmap_set(swap_free_bitmap, free_sector, false);
@@ -90,7 +90,7 @@ vm_swap_page(void *page)
 
 /* writes the sectors starting at swap_sector into the passed page */
 void
-vm_swap_back(block_sector_t swap_sector, void *page)
+vm_swap_back(block_sector_t swap_sector, void *phys_addr)
 {
     // TODO verify page reference? is_uservaddr?
     // TODO maybe we have to lock here, but vm_swap_get_free might be sufficient!
@@ -109,10 +109,10 @@ vm_swap_back(block_sector_t swap_sector, void *page)
         /* block_write Internally synchronizes accesses to block devices, so
            external per-block device locking is unneeded. */
         block_read(swap, swap_sector + sector_iterator,
-                    page + (BLOCK_SECTOR_SIZE * sector_iterator));
+                    phys_addr + (BLOCK_SECTOR_SIZE * sector_iterator));
     }
 
-     bitmap_set(swap_free_bitmap, swap_sector, true);
+    bitmap_set(swap_free_bitmap, swap_sector, true);
 }
 
 
