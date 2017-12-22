@@ -140,7 +140,7 @@ vm_sup_page_file_allocate (void *vm_addr, struct file* file, unsigned file_offse
   sup_page_entry->vm_addr = vm_addr;
   sup_page_entry->swap_addr = 0;
   sup_page_entry->thread = current_thread;
-  sup_page_entry->status = PAGE_NOT_LOADED;
+  sup_page_entry->status = PAGE_NOT_LOADED | PAGE_FILE;
   sup_page_entry->file = file;
   sup_page_entry->file_offset = file_offset;
   sup_page_entry->writable = writable;
@@ -172,6 +172,18 @@ vm_grow_stack(void *fault_frame_addr){
 
   /* page has to be added to pagedir */
   install_page (fault_frame_addr, page, true);
+}
+
+//TODO: implement this function
+/* implementation of load from swap partition called by page fault handler */
+void vm_load_swap(void *fault_frame_addr){
+
+}
+
+//TODO: implement this function
+/* implementation of load file called by page fault handler */
+void vm_load_file(void *fault_frame_addr){
+
 }
 
 
