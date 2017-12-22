@@ -6,6 +6,7 @@
 #include "threads/malloc.h"
 #include "filesys/file.h"
 #include "vm/sup_page.h"
+#include "vm/frame.h"
 #include "userprog/process.h"
 #include "threads/synch.h"
 #include "userprog/syscall.h"
@@ -34,13 +35,17 @@ hash_compare_vm_sup_page(const struct hash_elem *a_, const struct hash_elem *b_,
 
 /* returns the sup_page_entry of thread, corresponding to passed vm_addr */
 struct sup_page_entry*
-vm_sup_page_lookup (struct thread *thread, void* vm_addr)
+vm_sup_page_lookup (struct thread *thread, void *vm_addr)
 {
   struct sup_page_entry search_sup_page_entry;
   struct hash_elem *hash;
 
+  printf("vm_sup_page lookup 1\n");
+
   search_sup_page_entry.vm_addr = vm_addr;
-  hash = hash_find(&(thread->sup_page_hashmap), &search_sup_page_entry.h_elem);
+  printf("vm_sup_page lookup 2\n");
+  hash = hash_find(&(thread->sup_page_hashmap), &(search_sup_page_entry.h_elem));
+  printf("vm_sup_page lookup 3\n");
   
   // TODO refactor this line!
   return hash != NULL ? hash_entry (hash, struct sup_page_entry, h_elem) : NULL; 
@@ -86,8 +91,13 @@ vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED)
 /* initialize ressources for supplemental page */
 void
 vm_sup_page_init (struct thread *thread) {
-  hash_init(&thread->sup_page_hashmap, hash_vm_sup_page, hash_compare_vm_sup_page, NULL);
+  bool success = hash_init(&thread->sup_page_hashmap, hash_vm_sup_page, hash_compare_vm_sup_page, NULL);
+  if (success)
+    printf("DEBUG: hash_init worked\n");
+  else 
+    printf("DEBUG: hash_init did not work\n");
 }
+
 
 /* function to allocate a supplemental page table entry e.g. a stack*/
 bool
@@ -168,23 +178,25 @@ vm_sup_page_file_allocate (void *vm_addr, struct file* file, off_t file_offset, 
 /* implementation of stack growth called by page fault handler */
 bool
 vm_grow_stack(void *fault_frame_addr){
+  printf("stack growth reached! \n");
+  
   struct thread *thread = thread_current();
 
-  vm_sup_page_allocate(fault_frame_addr, true);
+  if (vm_sup_page_allocate(fault_frame_addr, true)){
 
-  void *page = vm_frame_allocate(vm_sup_page_lookup(thread, fault_frame_addr), (PAL_ZERO | PAL_USER) , true);
+    struct sup_page_entry *sup_page_entry = vm_sup_page_lookup(thread, fault_frame_addr);
 
-  //TODO: for debug check if *page==NULL -> kernel panic 
+    void *page = vm_frame_allocate(sup_page_entry, (PAL_ZERO | PAL_USER) , true);
 
-  if (!install_page(fault_frame_addr, page, true)){
-    /* page could not be added to pagedir, free frame and indicate file not loaded */
-    vm_frame_free (page, fault_frame_addr);
+    //TODO: for debug check if *page==NULL -> kernel panic 
+
+    sup_page_entry ->status = PAGE_LOADED;
+
+    return true;
+
+  } else {
     return false;
   }
-
-  sup_page->status = PAGE_LOADED;
-
-  return true;
 }
 
 //TODO: implement this function

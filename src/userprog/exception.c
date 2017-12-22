@@ -141,6 +141,8 @@ page_fault (struct intr_frame *f)
      (#PF)". */
   asm ("movl %%cr2, %0" : "=r" (fault_addr));
 
+  printf("page fault reached !\n");
+
   /* Turn interrupts back on (they were only off so that we could
      be assured of reading CR2 before it changed). */
   intr_enable ();
@@ -161,9 +163,9 @@ page_fault (struct intr_frame *f)
   uint32_t *pagedir = thread->pagedir;
 
   /* faulting at NULL outside user virtual adress space or writing to read only page */
-  if ((fault_addr == NULL) || (!not_present) || (!is_user_vaddr(fault_addr))){
+  /*if ((fault_addr == NULL) || (!not_present) || (!is_user_vaddr(fault_addr))){
     syscall_exit(-1);
-  }
+    }*/
 
   void *fault_frame_addr = pg_round_down(fault_addr);
   void *stack_pointer;
@@ -174,25 +176,32 @@ page_fault (struct intr_frame *f)
     // TODO get stack pointer for Kernel, has to be stored somewhere
     stack_pointer = NULL;
   }
+  printf("page fault reached Step 2!\n");
 
   // TODO not sure if we have to use faul_frame_addr or fault_addr here!
-  struct sup_page_entry *sup_page_entry = vm_sup_page_lookup (thread, fault_frame_addr);
+  struct sup_page_entry *sup_page_entry = vm_sup_page_lookup (thread, fault_addr);
+
+  printf("page fault reached Step 3!\n");
 
   if (sup_page_entry == NULL){
+    printf("sup_page_entry == NULL \n");
     if ((fault_addr + 32 >= stack_pointer) && (fault_addr < PHYS_BASE) && (PHYS_BASE - STACK_SIZE <= fault_frame_addr)){
       // TODO grow stack 
       vm_grow_stack(fault_frame_addr);
     }
 
   } else if ((sup_page_entry->status & PAGE_NOT_LOADED) != 0){
+      printf("TODO sup_page_entry found and Page not loaded yet\n");
       /* case page not loaded */
       // TODO load page here
       int todo = 0;
 
   } else if (pagedir_get_page (thread->pagedir, fault_addr) == false){
+    printf("no pagedir entry found at this fault addr \n");
     syscall_exit(-1);
 
   } else {
+    printf("last case \n");
     /* To implement virtual memory, delete the rest of the function
       body, and replace it with code that brings in the page to
       which fault_addr refers. */

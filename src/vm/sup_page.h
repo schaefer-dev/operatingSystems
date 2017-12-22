@@ -10,7 +10,7 @@
 
 
 // TODO rethink stack_size
-static int STACK_SIZE = 8 * 1048576;
+#define STACK_SIZE (8 * 1048576)
 
 /* Different statuses the page can have */
 enum page_status
@@ -18,7 +18,7 @@ enum page_status
     PAGE_ZEROED = 1,              /* Page Zeroed */
     PAGE_NOT_LOADED = 2,          /* page not loaded */
     PAGE_LOADED = 4,              /* Page Loaded */
-    PAGE_SWAPPED = 8,             /* Page Eviced and written to SWAP */
+    PAGE_SWAPPED = 8,             /* Page Eviced and writen to SWAP */
 
     // TODO More page status possible? Is file correct?
     PAGE_FILE = 16                 /* Page of File */

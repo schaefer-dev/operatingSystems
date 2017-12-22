@@ -1,5 +1,3 @@
-#include <hash.h>
-#include "lib/kernel/hash.h"
 #include "threads/malloc.h"
 #include <list.h>
 #include "lib/kernel/list.h"
@@ -20,16 +18,15 @@ void* evict_page(enum palloc_flags pflags);
 unsigned hash_vm_frame(const struct hash_elem *hash, void *aux UNUSED);
 bool hash_compare_vm_frame(const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED);
 
-/* hashmap from phys_addr -> frame for efficient lookup */
-static struct hash frame_hashmap;
 
 unsigned
 hash_vm_frame(const struct hash_elem *hash, void *aux UNUSED)
 {
-  const struct frame *frame;
+  struct frame *frame;
   frame = hash_entry(hash, struct frame, h_elem);
   return hash_bytes(&frame->phys_addr, sizeof(frame->phys_addr));
 }
+
 
 bool
 hash_compare_vm_frame(const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED)
@@ -39,6 +36,7 @@ hash_compare_vm_frame(const struct hash_elem *a_, const struct hash_elem *b_, vo
 
   return (a->phys_addr < b->phys_addr);
 }
+
 
 struct frame*
 vm_frame_lookup (void* phys_addr)
@@ -54,9 +52,13 @@ vm_frame_lookup (void* phys_addr)
 
 void
 vm_frame_init () {
+  printf("DEBUG: frame_init start \n");
   lock_init (&frame_lock);
+  printf("DEBUG: frame lock init passed \n");
   list_init (&frame_list);
+  printf("DEBUG: frame list init passed \n");
   hash_init(&frame_hashmap, hash_vm_frame, hash_compare_vm_frame, NULL);
+  printf("DEBUG: frame_init end \n");
 }
 
 //TODO: add page to pagedir of the corresponding thread

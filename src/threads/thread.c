@@ -16,6 +16,7 @@
 #include "userprog/syscall.h"
 #ifdef USERPROG
 #include "vm/sup_page.h"
+#include "vm/frame.h"
 #include "userprog/process.h"
 #endif
 
@@ -110,11 +111,14 @@ thread_init (void)
   list_init (&ready_list);
   list_init (&all_list);
 
+
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
+
+  vm_frame_init();
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
