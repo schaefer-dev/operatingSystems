@@ -21,6 +21,7 @@
 #include "threads/synch.h"
 #include "userprog/syscall.h"
 #include "vm/sup_page.h"
+#include "vm/frame.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp, char* argument_buffer, int argcount);
@@ -510,24 +511,26 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
-      uint8_t *kpage = palloc_get_page (PAL_USER);
+      bool success = vm_sup_page_allocate(upage, writable);
+
+      struct thread *thread = thread_current();
+
+      if (!success)
+        printf("DEBUG: page could not be allocated in load_segment \n");
+
+      struct sup_page_entry *sup_page_entry = vm_sup_page_lookup(thread, upage);
+      
+      uint8_t *kpage = vm_frame_allocate(sup_page_entry, (PAL_USER), writable);
       if (kpage == NULL)
         return false;
 
       /* Load this page. */
       if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
         {
-          palloc_free_page (kpage);
+          vm_frame_free(kpage, upage);
           return false; 
         }
       memset (kpage + page_read_bytes, 0, page_zero_bytes);
-
-      /* Add the page to the process's address space. */
-      if (!install_page (upage, kpage, writable)) 
-        {
-          palloc_free_page (kpage);
-          return false; 
-        }
 
       /* Advance. */
       read_bytes -= page_read_bytes;
