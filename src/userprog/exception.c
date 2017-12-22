@@ -141,6 +141,7 @@ page_fault (struct intr_frame *f)
      (#PF)". */
   asm ("movl %%cr2, %0" : "=r" (fault_addr));
 
+  //printf("DEBUG: Page Fault happened!\n");
 
   /* Turn interrupts back on (they were only off so that we could
      be assured of reading CR2 before it changed). */
@@ -177,20 +178,36 @@ page_fault (struct intr_frame *f)
   }
 
   // TODO not sure if we have to use faul_frame_addr or fault_addr here!
-  struct sup_page_entry *sup_page_entry = vm_sup_page_lookup (thread, fault_addr);
+  struct sup_page_entry *sup_page_entry = vm_sup_page_lookup (thread, fault_frame_addr);
+  //printf("DEBUG: sup_page allocated at vaddr: %p\n", upage);
 
 
   if (sup_page_entry == NULL){
+    //printf("DEBUG: sup_page null!\n");
     if ((fault_addr + 32 >= stack_pointer) && (fault_addr < PHYS_BASE) && (PHYS_BASE - STACK_SIZE <= fault_frame_addr)){
-      // TODO grow stack 
-      vm_grow_stack(fault_frame_addr);
+      //printf("DEBUG: stack growth called!\n");
+        vm_grow_stack(fault_frame_addr);
     } else {
       syscall_exit(-1);
     }
 
   } else if ((sup_page_entry->status & PAGE_STATUS_NOT_LOADED) != 0){
-      /* case page not loaded */
-      // TODO load page here
+    /* case page not loaded */
+    // TODO refactor and use pass type to function and use switch over type
+    if ((sup_page_entry->type & PAGE_TYPE_FILE) != 0){
+      //printf("DEBUG: load_file called!\n");
+      vm_load_file(fault_frame_addr);
+
+    } else if ((sup_page_entry->type & PAGE_TYPE_MMAP) != 0){
+      // TODO implement loading from MMAP
+
+    } else {
+      //printf("Page not loaded, but of illegal type!\n");
+    }
+
+  } else if ((sup_page_entry->status & PAGE_STATUS_SWAPPED) != 0){
+      /* case page swapped */
+      // TODO load page from swap here
       int todo = 0;
       syscall_exit(-1);
 

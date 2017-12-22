@@ -494,7 +494,7 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
    Return true if successful, false if a memory allocation error
    or disk read error occurs. */
 static bool
-load_segment (struct file *file, off_t ofs, uint8_t *upage,
+load_segment_not_lazy (struct file *file, off_t ofs, uint8_t *upage,
               uint32_t read_bytes, uint32_t zero_bytes, bool writable) 
 {
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
@@ -552,12 +552,13 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
    Return true if successful, false if a memory allocation error
    or disk read error occurs. */
 static bool
-load_segment_lazy (struct file *file, off_t ofs, uint8_t *upage,
+load_segment (struct file *file, off_t ofs, uint8_t *upage,
               uint32_t read_bytes, uint32_t zero_bytes, bool writable) 
 {
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
+  //printf("Load segment called!\n");
 
   file_seek (file, ofs);
   while (read_bytes > 0 || zero_bytes > 0) 
@@ -571,8 +572,10 @@ load_segment_lazy (struct file *file, off_t ofs, uint8_t *upage,
       /* Add page to supplemental page table */
       //TODO ensure if page is loaded ZERO bytes are added simply use PAL_ZERO in every palloc_get_page?
       if (!vm_sup_page_file_allocate (upage, file, ofs, page_read_bytes, writable)){
+        //printf("Load segment failed!\n");
         return false;
       }
+      //printf("DEBUG: sup_page allocated at vaddr: %p\n", upage);
 
       /* Advance. */
       // TODO: page_read_bytes is uint32_t BUT ofs is int32_t !!!!!!! broken
@@ -581,6 +584,7 @@ load_segment_lazy (struct file *file, off_t ofs, uint8_t *upage,
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
     }
+  //printf("Load segment success!\n");
   return true;
 }
 
