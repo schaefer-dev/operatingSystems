@@ -20,19 +20,19 @@ static void syscall_handler (struct intr_frame *);
 static int max_file_name = 14;
 
 void syscall_init (void);
-void validate_pointer(const void* pointer);
-void validate_buffer(const void* buffer, unsigned size);
-int validate_string(const char* buffer);
+void validate_pointer(const void* pointer, void* esp);
+void validate_buffer(const void* buffer, unsigned size, void* esp);
+int validate_string(const char* buffer, void* esp);
 void* read_argument_at_index(struct intr_frame *f, int arg_offset);
 void syscall_exit(const int exit_type);
 void syscall_halt(void);
-tid_t syscall_exec(const char *cmd_line);
-int syscall_write(int fd, const void *buffer, unsigned size);
-int syscall_read(int fd, void *buffer, unsigned size);
-bool syscall_create(const char *file_name, unsigned initial_size);
-bool syscall_remove(const char *file_name);
+tid_t syscall_exec(const char *cmd_line, void *esp);
+int syscall_write(int fd, const void *buffer, unsigned size, void *esp);
+int syscall_read(int fd, void *buffer, unsigned size, void *esp);
+bool syscall_create(const char *file_name, unsigned initial_size, void *esp);
+bool syscall_remove(const char *file_name, void *esp);
 bool check_file_name(const char *file_name);
-int syscall_open(const char *file_name);
+int syscall_open(const char *file_name, void *esp);
 int syscall_filesize(int fd);
 struct file* get_file(int fd);
 void syscall_seek(int fd, unsigned position);
@@ -40,6 +40,7 @@ unsigned syscall_tell(int fd);
 void syscall_close(int fd);
 struct list_elem* get_list_elem(int fd);
 
+// TODO TODO TODO TODO Refactor ESP passing through everything
 
 void
 syscall_init (void) 
@@ -56,7 +57,7 @@ syscall_handler (struct intr_frame *f UNUSED)
     syscall_exit(-1);
   void *esp = (int*) f->esp;
 
-  validate_pointer(esp);
+  validate_pointer(esp, esp);
 
   //printf("DEBUG: Syscall_handler started \n");
 
@@ -81,8 +82,8 @@ syscall_handler (struct intr_frame *f UNUSED)
     case SYS_EXEC:
       {
         char *cmd_line = *((char**) read_argument_at_index(f, 0));
-        validate_pointer(cmd_line);
-        f->eax = syscall_exec(cmd_line);
+        validate_pointer(cmd_line, esp);
+        f->eax = syscall_exec(cmd_line, esp);
         break;
       }
 
@@ -97,17 +98,17 @@ syscall_handler (struct intr_frame *f UNUSED)
     case SYS_CREATE:
       {
         char *file_name= *((char**) read_argument_at_index(f,0));
-        validate_pointer(file_name);
+        validate_pointer(file_name, esp);
         unsigned initial_size = *((unsigned*) read_argument_at_index(f,sizeof(char*)));
-        f->eax = syscall_create(file_name, initial_size);
+        f->eax = syscall_create(file_name, initial_size, esp);
         break;
       }
 
     case SYS_REMOVE:
       {
         char *file_name= *((char**) read_argument_at_index(f,0));
-        validate_pointer(file_name);
-        f->eax = syscall_remove(file_name);
+        validate_pointer(file_name, esp);
+        f->eax = syscall_remove(file_name, esp);
         break;
       }
 
@@ -115,8 +116,8 @@ syscall_handler (struct intr_frame *f UNUSED)
       {
         //printf("DEBUG: Syscall OPEN start\n");
         char *file_name= *((char**) read_argument_at_index(f,0));
-        validate_pointer(file_name);
-        f->eax = syscall_open(file_name);
+        validate_pointer(file_name, esp);
+        f->eax = syscall_open(file_name, esp);
         //printf("DEBUG: Syscall OPEN end\n");
         break;
       }
@@ -134,7 +135,7 @@ syscall_handler (struct intr_frame *f UNUSED)
         int fd = *((int*)read_argument_at_index(f,0)); 
         void *buffer = *((void**)read_argument_at_index(f,sizeof(int))); 
         unsigned size = *((unsigned*)read_argument_at_index(f,2*sizeof(int))); 
-        int returnvalue = syscall_read(fd, buffer, size);
+        int returnvalue = syscall_read(fd, buffer, size, esp);
         f->eax = returnvalue;
         //printf("DEBUG: Syscall READ end\n");
       }
@@ -146,7 +147,7 @@ syscall_handler (struct intr_frame *f UNUSED)
         int fd = *((int*)read_argument_at_index(f,0)); 
         void *buffer = *((void**)read_argument_at_index(f,sizeof(int))); 
         unsigned size = *((unsigned*)read_argument_at_index(f,2*sizeof(int))); 
-        int returnvalue = syscall_write(fd, buffer, size);
+        int returnvalue = syscall_write(fd, buffer, size, esp);
         f->eax = returnvalue;
         //printf("DEBUG: Syscall WRITE start\n");
         break;
@@ -215,8 +216,9 @@ syscall_handler (struct intr_frame *f UNUSED)
 /* calls syscall_exit(-1) if the passed pointer is not valid in the current 
    context */
 void
-validate_pointer(const void* pointer){
-  uint32_t *pagedir = thread_current()->pagedir;
+validate_pointer(const void* pointer, void *esp){
+  struct thread *thread = thread_current();
+  uint32_t *pagedir = thread->pagedir;
   void *frame_pointer = pg_round_down(pointer);
   if (pointer == NULL || !is_user_vaddr(pointer)){
     //if (pagedir_get_page(pagedir, pointer)==NULL)
@@ -224,22 +226,23 @@ validate_pointer(const void* pointer){
       //printf("DEBUG: Validate pointer fail in syscall\n");
     syscall_exit(-1);
   }
+  if (vm_sup_page_lookup(thread, pg_round_down(pointer)) == NULL)
+    if ((pointer) < esp - 32) 
+      syscall_exit(-1);
 }
 
 
 /* calls syscall_exit(-1) if the passed buffer is not valid in the current 
    context */
 void
-validate_buffer(const void* buffer, unsigned size){
+validate_buffer(const void* buffer, unsigned size, void *esp){
   //printf("DEBUG: Validate buffer start in syscall\n");
   unsigned i = 0;
   const char* buffer_iter = buffer;
   struct thread *thread = thread_current();
   while (i < (size)){
-    validate_pointer(buffer_iter + i);
+    validate_pointer(buffer_iter + i, esp);
     i += 1;
-    //if (vm_sup_page_lookup(thread, pg_round_down(buffer_iter + i)) == NULL)
-    //  syscall_exit(-1);
   }
 
   //printf("DEBUG: Validate buffer end in syscall\n");
@@ -249,18 +252,18 @@ validate_buffer(const void* buffer, unsigned size){
 /* calls syscall_exit(-1) if the passed "string" is not valid in the current 
    context, otherwise returns length of string */
 int
-validate_string(const char* buffer){
+validate_string(const char* buffer, void *esp){
   //printf("DEBUG: Validate string start in syscall\n");
   int length = 0;
   const char* buffer_iter = buffer;
-  validate_pointer(buffer_iter);
+  validate_pointer(buffer_iter, esp);
   while (true){
     if (*buffer_iter == '\0')
       break; 
       
     buffer_iter += 1;
     length += 1;
-    validate_pointer(buffer_iter);
+    validate_pointer(buffer_iter, esp);
   }
 
   //printf("DEBUG: Validate string end in syscall\n");
@@ -273,10 +276,10 @@ void *
 read_argument_at_index(struct intr_frame *f, int arg_offset){
 
   void *esp = (void*) f->esp;
-  validate_pointer(esp);
+  validate_pointer(esp, esp);
 
   void *argument = esp + sizeof(int) + arg_offset;
-  validate_pointer(argument);
+  validate_pointer(argument, esp);
 
   return argument;
 }
@@ -322,12 +325,12 @@ syscall_exit(const int exit_type){
    the passed buffer. Returns the number of bytes actually written, 
    which could be less than size if some bytes could not be read. */
 int
-syscall_write(int fd, const void *buffer, unsigned size){
+syscall_write(int fd, const void *buffer, unsigned size, void *esp){
 
   int returnvalue = 0;
 
   /* check if the entire buffer is valid */
-  validate_buffer(buffer,size);
+  validate_buffer(buffer,size, esp);
 
   if (fd == STDOUT_FILENO){
     putbuf(buffer,size);
@@ -357,11 +360,11 @@ syscall_write(int fd, const void *buffer, unsigned size){
    Returns the number of bytes actually read or -1 if the file could not
    be read */
 int
-syscall_read(int fd, void *buffer, unsigned size){
+syscall_read(int fd, void *buffer, unsigned size, void *esp){
   int returnvalue = 0;
 
   /* check if the entire buffer is valid */
-  validate_buffer(buffer, size);
+  validate_buffer(buffer, size, esp);
 
   if (fd == STDOUT_FILENO){
     returnvalue = -1;
@@ -412,13 +415,13 @@ syscall_halt(){
    program id. Returns -1 if the program cannot load or run
    for any reason. */
 tid_t
-syscall_exec(const char *cmd_line){
+syscall_exec(const char *cmd_line, void *esp){
 
   if (cmd_line == NULL){
     return -1;
   }
 
-  int length = validate_string(cmd_line);
+  int length = validate_string(cmd_line, esp);
   if (length == 0){
     return -1;
   }
@@ -450,8 +453,8 @@ syscall_exec(const char *cmd_line){
    Returns true if successful, false otherwise. 
    NOTE: it does not open the file! */
 bool
-syscall_create(const char *file_name, unsigned initial_size){
-  int length = validate_string(file_name);
+syscall_create(const char *file_name, unsigned initial_size, void *esp){
+  int length = validate_string(file_name, esp);
   if (length > max_file_name)
     return false;
   lock_acquire(&lock_filesystem);
@@ -463,8 +466,8 @@ syscall_create(const char *file_name, unsigned initial_size){
 
 /* deletes the file file_name and returns true if successful, false otherwise */
 bool
-syscall_remove(const char *file_name){
-  int length = validate_string(file_name);
+syscall_remove(const char *file_name, void *esp){
+  int length = validate_string(file_name, esp);
   if (length > max_file_name)
     return false;
   lock_acquire(&lock_filesystem);
@@ -475,8 +478,8 @@ syscall_remove(const char *file_name){
 
 /* opens the file file_name, returns non-negative file descriptor for
    the opened file if succesful, -1 otherwise */
-int syscall_open(const char *file_name){
-  int length = validate_string(file_name);
+int syscall_open(const char *file_name, void *esp){
+  int length = validate_string(file_name, esp);
   if (length > max_file_name)
     return -1;
   lock_acquire(&lock_filesystem);
