@@ -159,4 +159,16 @@ vm_sup_page_file_allocate (void *vm_addr, struct file* file, unsigned file_offse
 }
 
 
+// TODO check this
+/* implementation of stack growth called by page fault handler */
+void
+vm_grow_stack(void *fault_frame_addr){
+  struct thread *thread = thread_current();
+
+  vm_sup_page_allocate(fault_frame_addr, true);
+
+  void *page = vm_frame_allocate(vm_sup_page_lookup(thread, fault_frame_addr), (PAL_ZERO | PAL_USER) , true);
+}
+
+
 // TODO implement hash function

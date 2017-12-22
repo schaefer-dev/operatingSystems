@@ -7,6 +7,8 @@
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
 #include "userprog/syscall.h"
+#include "vm/frame.h"
+#include "vm/sup_page.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -154,19 +156,53 @@ page_fault (struct intr_frame *f)
   /* notify parent about syscall */
   // TODO check if user and page not user or if pointer null or if writing to read only page
 
-  uint32_t *pagedir = thread_current()->pagedir;
-  if ((fault_addr == NULL) || (user && !is_user_vaddr(fault_addr)) || (pagedir_get_page(pagedir, fault_addr)==NULL) || (!not_present))
-    // Exit if pointer is not valid
+  struct thread *thread = thread_current();
+
+  uint32_t *pagedir = thread->pagedir;
+
+  /* faulting at NULL outside user virtual adress space or writing to read only page */
+  if ((fault_addr == NULL) || (!not_present) || (!is_user_vaddr(fault_addr))){
+    syscall_exit(-1);
+  }
+
+  void *fault_frame_addr = pg_round_down(fault_addr);
+  void *stack_pointer;
+
+  if (user == true){
+    stack_pointer = f->esp;
+  } else {
+    // TODO get stack pointer for Kernel, has to be stored somewhere
+    stack_pointer = NULL;
+  }
+
+  // TODO not sure if we have to use faul_frame_addr or fault_addr here!
+  struct sup_page_entry *sup_page_entry = vm_sup_page_lookup (thread, fault_frame_addr);
+
+  if (sup_page_entry == NULL){
+    if ((fault_addr + 32 >= stack_pointer) && (fault_addr < PHYS_BASE) && (PHYS_BASE - STACK_SIZE <= fault_frame_addr)){
+      // TODO grow stack 
+      vm_grow_stack(fault_frame_addr);
+    }
+
+  } else if ((sup_page_entry->status & PAGE_NOT_LOADED) != 0){
+      /* case page not loaded */
+      // TODO load page here
+      int todo = 0;
+
+  } else if (pagedir_get_page (thread->pagedir, fault_addr) == false){
     syscall_exit(-1);
 
-  /* To implement virtual memory, delete the rest of the function
-     body, and replace it with code that brings in the page to
-     which fault_addr refers. */
-  printf ("Page fault at %p: %s error %s page in %s context.\n",
-          fault_addr,
-          not_present ? "not present" : "rights violation",
-          write ? "writing" : "reading",
-          user ? "user" : "kernel");
-  kill (f);
-}
+  } else {
+    /* To implement virtual memory, delete the rest of the function
+      body, and replace it with code that brings in the page to
+      which fault_addr refers. */
+    printf ("Page fault at %p: %s error %s page in %s context.\n",
+            fault_addr,
+            not_present ? "not present" : "rights violation",
+            write ? "writing" : "reading",
+            user ? "user" : "kernel");
+    kill (f);
 
+  }
+
+}
