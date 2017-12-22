@@ -44,7 +44,9 @@ struct sup_page_entry
     /* offset at which this page starts reading the referenced file */
     off_t file_offset;
 
-    // TODO: How are files handeld in supplemental page?
+    /* size of read_bytes in file at position file_offset*/
+
+    /* file from which we read our data */
     struct file *file;
 
     /* bool to indicat if file/page is writable */
@@ -63,11 +65,14 @@ bool hash_compare_vm_sup_page(const struct hash_elem *a_, const struct hash_elem
 
 void vm_sup_page_init(struct thread *thread);
 bool vm_sup_page_allocate (void *vm_addr, bool writable);
-bool vm_sup_page_file_allocate (void *vm_addr, struct file* file, unsigned file_offset, bool writable);
+bool vm_sup_page_file_allocate (void *vm_addr, struct file* file, off_t file_offset, off_t read_bytes,bool writable);
 
 void vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED);
 struct sup_page_entry* vm_sup_page_lookup (struct thread *thread, void* vm_addr);
 void vm_sup_page_hashmap_close(struct thread *thread);
+bool vm_load_file(void *fault_frame_addr);
+bool vm_load_swap(void *fault_frame_addr);
+bool vm_grow_stack(void *fault_frame_addr);
 
 
 #endif /* vm/sup_page.h */

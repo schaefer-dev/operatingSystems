@@ -567,11 +567,12 @@ load_segment_lazy (struct file *file, off_t ofs, uint8_t *upage,
 
       /* Add page to supplemental page table */
       //TODO ensure if page is loaded ZERO bytes are added simply use PAL_ZERO in every palloc_get_page?
-      if (!vm_sup_page_file_allocate (upage, file, ofs, writable)){
+      if (!vm_sup_page_file_allocate (upage, file, ofs, page_read_bytes, writable)){
         return false;
       }
 
       /* Advance. */
+      // TODO: page_read_bytes is uint32_t BUT ofs is int32_t !!!!!!! broken
       ofs += page_read_bytes;
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
