@@ -507,6 +507,9 @@ init_thread (struct thread *t, const char *name, int priority)
   list_init(&t->file_list);
   t->current_fd = 2;
 
+  /* initialize current mmap id */
+  t->current_mmapid = 0;
+
   /* initialize executable of this thread */
   t->executable = NULL;
 

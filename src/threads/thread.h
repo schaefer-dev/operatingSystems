@@ -118,6 +118,9 @@ struct thread
     /* Counter to give every file in file list a unique fd */
     int current_fd;
 
+    /* Counter to give every file in mmap a unique id */
+    int current_mmapid;
+
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */

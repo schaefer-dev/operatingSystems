@@ -55,6 +55,9 @@ struct sup_page_entry
     /* file from which we read our data */
     struct file *file;
 
+    /* id to identify mmap */
+    int mmap_id;
+
     /* bool to indicat if file/page is writable */
     bool writable;
     
@@ -70,6 +73,8 @@ bool hash_compare_vm_sup_page(const struct hash_elem *a_, const struct hash_elem
 void vm_sup_page_init(struct thread *thread);
 bool vm_sup_page_allocate (void *vm_addr, bool writable);
 bool vm_sup_page_file_allocate (void *vm_addr, struct file* file, off_t file_offset, off_t read_bytes,bool writable);
+bool vm_sup_page_mmap_allocate (void *vm_addr, struct file* file, off_t file_offset, 
+  off_t read_bytes, int mmap_id, bool writable)
 
 void vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED);
 struct sup_page_entry* vm_sup_page_lookup (struct thread *thread, void* vm_addr);

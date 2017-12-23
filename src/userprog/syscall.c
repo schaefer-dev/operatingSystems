@@ -39,6 +39,8 @@ void syscall_seek(int fd, unsigned position);
 unsigned syscall_tell(int fd);
 void syscall_close(int fd);
 struct list_elem* get_list_elem(int fd);
+bool validate_mmap(int fd, void* vaddr);
+bool validate_mmap_address(void* vaddr)
 
 // TODO TODO TODO TODO Refactor ESP passing through everything
 
@@ -626,5 +628,72 @@ void syscall_close(int fd){
   list_remove (element);
   free(f);
   lock_release(&lock_filesystem);
+}
+
+/* checks if vaddr is page aligned and fd is coorect */
+bool validate_mmap(int fd, void* vaddr){
+  /* check if fd is 0 or 1 because this is invalid */
+  if( fd == 0 || fd == 1)
+    return false;
+   /* check if vaddr is 0 or not page aligned
+    because this is invalid */
+  if (vaddr == 0 || ((vaddr % PGSIZE) != 0)
+    return false;
+  /* check if mapping overlaps previous mappings */
+  if (vm_sup_page_lookup(thread_current(), vaddr))
+    return false; 
+
+  return true;
+}
+
+/* checks if vaddr is already mapped -> overlap
+ returns false if maped address overlaps */
+bool validate_mmap_address(void* vaddr){
+   if (vm_sup_page_lookup(thread_current(), vaddr))
+    return false; 
+
+  return true;
+}
+
+/* syscall to mmap files */
+int syscall_mmap(int fd, void* vaddr){
+  if (!validate_mmap(fd, vaddr)
+    return -1;
+  lock_acquire(&lock_filesystem);
+  struct file *file = get_file(fd);
+  if (file == NULL){
+    return -1;
+  }
+  unsigned size = file_length(file);
+  if (size == 0)
+    return -1;
+  struct thread *t = thread_current();
+  int current_mmapid = t->current_mmapid;
+  t->current_mmapid += 1;
+  lock_release(&lock_filesystem);
+  /* offset in file is initially 0 */
+  off_t ofs=0;
+
+  /* save file in sup_page */
+  while (size>0) 
+    {
+      /* Calculate how to fill this page. */
+      off_t page_read_bytes = size < PGSIZE ? size : PGSIZE;
+
+      if (! validate_mmap_address(vaddr))
+        return -1;
+
+      /* Add page to supplemental page table */
+      // TODO: check if it is always writable
+      if (!vm_sup_page_mmap_allocate (vaddr, file, ofs, page_read_bytes, current_mmapid, true)){
+        return -1;
+      }
+
+      ofs += page_read_bytes;
+      size -= page_read_bytes;
+      vaddr += PGSIZE;
+    }
+  
+  return current_mmapid; 
 }
 

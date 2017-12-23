@@ -116,6 +116,8 @@ vm_sup_page_allocate (void *vm_addr, bool writable)
   sup_page_entry->status = PAGE_STATUS_NOT_LOADED;
   sup_page_entry->type = PAGE_TYPE_STACK;
   sup_page_entry->file = NULL;
+  sup_page_entry->read_bytes = 0;
+  sup_page_entry->mmap_id=-1;
   sup_page_entry->file_offset = 0;
   sup_page_entry->writable = writable;
 
@@ -156,6 +158,48 @@ vm_sup_page_file_allocate (void *vm_addr, struct file* file, off_t file_offset, 
   sup_page_entry->file = file;
   sup_page_entry->file_offset = file_offset;
   sup_page_entry->read_bytes = read_bytes;
+  sup_page_entry->mmap_id=-1;
+  sup_page_entry->writable = writable;
+
+  /* check if there is already the same hash contained in the hashmap, in which case we abort! */
+  struct hash_elem *prev_elem;
+  prev_elem = hash_insert (&(current_thread->sup_page_hashmap), &(sup_page_entry->h_elem));
+  if (prev_elem == NULL) {
+    return true;
+  }
+  else {
+    /* creation of supplemental page failed, because there was already an entry 
+       with the same hashvalue */
+    free (sup_page_entry);
+    return false;
+  }
+}
+
+/* function to allocate a supplemental page table entry for mmaped files incuding the file 
+and the offset within the file*/
+bool
+vm_sup_page_mmap_allocate (void *vm_addr, struct file* file, off_t file_offset, 
+  off_t read_bytes, int mmap_id, bool writable)
+{
+  // TODO implement writable parameter
+  // TODO Frame Loading happens in page fault, we use round down (defined in vaddr.h) 
+  // to get the supplemental page using the sup_page_hashmap
+
+  struct thread *current_thread = thread_current();
+
+  struct sup_page_entry *sup_page_entry = (struct sup_page_entry *) malloc(sizeof(struct sup_page_entry));
+
+  sup_page_entry->phys_addr = NULL;
+
+  sup_page_entry->vm_addr = vm_addr;
+  sup_page_entry->swap_addr = 0;
+  sup_page_entry->thread = current_thread;
+  sup_page_entry->status = PAGE_STATUS_NOT_LOADED;
+  sup_page_entry->type = PAGE_TYPE_MMAP;
+  sup_page_entry->file = file;
+  sup_page_entry->file_offset = file_offset;
+  sup_page_entry->read_bytes = read_bytes;
+  sup_page_entry->mmap_id=mmap_id;
   sup_page_entry->writable = writable;
 
   /* check if there is already the same hash contained in the hashmap, in which case we abort! */
