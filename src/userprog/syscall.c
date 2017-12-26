@@ -14,6 +14,7 @@
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 #include "userprog/pagedir.h"
+#include "vm/sup_page.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -40,7 +41,8 @@ unsigned syscall_tell(int fd);
 void syscall_close(int fd);
 struct list_elem* get_list_elem(int fd);
 bool validate_mmap(int fd, void* vaddr);
-bool validate_mmap_address(void* vaddr)
+bool validate_mmap_address(void* vaddr);
+int syscall_mmap(int fd, void* vaddr);
 
 // TODO TODO TODO TODO Refactor ESP passing through everything
 
@@ -220,7 +222,8 @@ syscall_handler (struct intr_frame *f UNUSED)
 void
 validate_pointer(const void* pointer, void *esp){
   struct thread *thread = thread_current();
-  uint32_t *pagedir = thread->pagedir;
+	// TODO: check if this line can be removed
+  //uint32_t *pagedir = thread->pagedir;
   void *frame_pointer = pg_round_down(pointer);
   if (pointer == NULL || !is_user_vaddr(pointer)){
     //if (pagedir_get_page(pagedir, pointer)==NULL)
@@ -228,7 +231,7 @@ validate_pointer(const void* pointer, void *esp){
       //printf("DEBUG: Validate pointer fail in syscall\n");
     syscall_exit(-1);
   }
-  if (vm_sup_page_lookup(thread, pg_round_down(pointer)) == NULL)
+  if (vm_sup_page_lookup(thread, frame_pointer) == NULL)
     if ((pointer) < esp - 32) 
       syscall_exit(-1);
 }
@@ -241,7 +244,8 @@ validate_buffer(const void* buffer, unsigned size, void *esp){
   //printf("DEBUG: Validate buffer start in syscall\n");
   unsigned i = 0;
   const char* buffer_iter = buffer;
-  struct thread *thread = thread_current();
+	// TODO: check if this line can be removed
+  //struct thread *thread = thread_current();
   while (i < (size)){
     validate_pointer(buffer_iter + i, esp);
     i += 1;
@@ -637,7 +641,7 @@ bool validate_mmap(int fd, void* vaddr){
     return false;
    /* check if vaddr is 0 or not page aligned
     because this is invalid */
-  if (vaddr == 0 || ((vaddr % PGSIZE) != 0)
+  if (vaddr == 0 || ((uint32_t)vaddr % PGSIZE) != 0)
     return false;
   /* check if mapping overlaps previous mappings */
   if (vm_sup_page_lookup(thread_current(), vaddr))
@@ -656,8 +660,8 @@ bool validate_mmap_address(void* vaddr){
 }
 
 /* syscall to mmap files */
-int syscall_mmap(int fd, void* vaddr){
-  if (!validate_mmap(fd, vaddr)
+mapid_t syscall_mmap(int fd, void* vaddr){
+  if (!validate_mmap(fd, vaddr))
     return -1;
   lock_acquire(&lock_filesystem);
   struct file *file = get_file(fd);
@@ -668,7 +672,7 @@ int syscall_mmap(int fd, void* vaddr){
   if (size == 0)
     return -1;
   struct thread *t = thread_current();
-  int current_mmapid = t->current_mmapid;
+  mapid_t current_mmapid = t->current_mmapid;
   t->current_mmapid += 1;
   lock_release(&lock_filesystem);
   /* offset in file is initially 0 */

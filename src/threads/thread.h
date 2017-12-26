@@ -9,6 +9,7 @@
 #include "threads/synch.h"
 #include <hash.h>
 #include "vm/sup_page.h"
+#include "userprog/syscall.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -119,7 +120,7 @@ struct thread
     int current_fd;
 
     /* Counter to give every file in mmap a unique id */
-    int current_mmapid;
+    mapid_t current_mmapid;
 
 
 #ifdef USERPROG
@@ -141,6 +142,14 @@ struct file_entry
     struct file *file;
     int fd;
     struct list_elem elem; 
+  };
+
+/* Struct to save maped files of a thread in a linked list */
+struct mmap_entry
+  {
+    struct list sup_page_list;
+    mapid_t mmap_id;
+    struct hash_elem h_elem; 
   };
 
 

@@ -65,6 +65,10 @@ struct sup_page_entry
     enum palloc_flags pflags;
 
     struct hash_elem h_elem;
+
+		/* TODO: to unmap files efficientlry we need a hash map with
+			 key mmapid and a inside a list of all corresponding sup_page_entries */
+		struct list_elem l_elem;
   };
 
 unsigned hash_vm_sup_page(const struct hash_elem *sup_p_, void *aux UNUSED);
@@ -74,7 +78,7 @@ void vm_sup_page_init(struct thread *thread);
 bool vm_sup_page_allocate (void *vm_addr, bool writable);
 bool vm_sup_page_file_allocate (void *vm_addr, struct file* file, off_t file_offset, off_t read_bytes,bool writable);
 bool vm_sup_page_mmap_allocate (void *vm_addr, struct file* file, off_t file_offset, 
-  off_t read_bytes, int mmap_id, bool writable)
+  off_t read_bytes, int mmap_id, bool writable);
 
 void vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED);
 struct sup_page_entry* vm_sup_page_lookup (struct thread *thread, void* vm_addr);

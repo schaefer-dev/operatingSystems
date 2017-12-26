@@ -199,7 +199,7 @@ vm_sup_page_mmap_allocate (void *vm_addr, struct file* file, off_t file_offset,
   sup_page_entry->file = file;
   sup_page_entry->file_offset = file_offset;
   sup_page_entry->read_bytes = read_bytes;
-  sup_page_entry->mmap_id=mmap_id;
+  sup_page_entry->mmap_id = mmap_id;
   sup_page_entry->writable = writable;
 
   /* check if there is already the same hash contained in the hashmap, in which case we abort! */
