@@ -184,7 +184,9 @@ syscall_handler (struct intr_frame *f UNUSED)
     case SYS_MMAP:
 			{
 		    int fd = *((int*)read_argument_at_index(f,0));
-		    void *addr = read_mmap_argument_at_index(f,1);
+		    void *addr = *((void**)read_argument_at_index(f,1));
+				printf("hexa vaddr:%p \n", addr);
+				printf("fd: %i\n", fd);
 		    f->eax = syscall_mmap(fd, addr);
 		    break;
 			}
@@ -653,16 +655,48 @@ void syscall_close(int fd){
 /* checks if vaddr is page aligned and fd is coorect */
 bool validate_mmap(int fd, void* vaddr){
   /* check if fd is 0 or 1 because this is invalid */
-  if( fd == 0 || fd == 1)
+  if( fd == 0 || fd == 1){
+		printf("fd is not correct\n");
     return false;
+	}
    /* check if vaddr is 0 or not page aligned
     because this is invalid */
-  if (vaddr == 0 || ((uint32_t)vaddr % PGSIZE) != 0)
+	if (((uint32_t)vaddr) == 0){
+		printf("vaddr : %u \n", (uint32_t)vaddr);
+		printf("vaddr hexa : %p \n", vaddr);
+		return false;
+	}
+	if (((uint32_t)vaddr % PGSIZE) != 0){
+		printf("vaddr : %u \n", (uint32_t)vaddr);
+		printf("vaddr hexa : %p \n", vaddr);
+		printf("page size : %u \n", (uint32_t) PGSIZE);
+		printf("modulo : %u \n", ((uint32_t)vaddr % PGSIZE));
+		printf("vaddr is 0 or not page aligned \n");
+		return false;
+	}
+	if (!is_user_vaddr(vaddr)){
+		bool success = is_user_vaddr(vaddr);
+		printf("vaddr is user space:%d \n", success);
+		printf("not user_vaddr \n");
     return false;
+	}
+  if ((uint32_t)vaddr == 0 || ((uint32_t)vaddr % PGSIZE) != 0 ||
+			!(is_user_vaddr(vaddr))){
+		printf("vaddr : %u \n", (uint32_t)vaddr);
+		printf("vaddr hexa : %p \n", vaddr);
+		printf("page size : %u \n", (uint32_t) PGSIZE);
+		printf("modulo : %u \n", ((uint32_t)vaddr % PGSIZE));
+		printf("vaddr is 0 or not page aligned \n");
+		bool success = is_user_vaddr(vaddr);
+		printf("vaddr is user space:%d \n", success);
+		printf("not user_vaddr \n");
+    return false;
+	}
   /* check if mapping overlaps previous mappings */
-  if (vm_sup_page_lookup(thread_current(), vaddr))
+  if (vm_sup_page_lookup(thread_current(), vaddr)){
+		printf("page already mapped \n");
     return false; 
-
+	}
   return true;
 }
 
@@ -677,8 +711,10 @@ bool validate_mmap_address(void* vaddr){
 
 /* syscall to mmap files */
 mapid_t syscall_mmap(int fd, void* vaddr){
+	printf("syscall mmap reached\n");
   if (!validate_mmap(fd, vaddr))
     return -1;
+	printf("validate mmap okay\n");
   lock_acquire(&lock_filesystem);
   struct file *open_file = get_file(fd);
   if (open_file == NULL){
@@ -696,11 +732,12 @@ mapid_t syscall_mmap(int fd, void* vaddr){
   mapid_t current_mmapid = t->current_mmapid;
   t->current_mmapid += 1;
   lock_release(&lock_filesystem);
+	printf("read mmap file okay\n");
   /* offset in file is initially 0 */
   off_t ofs=0;
 
   /* add mmap_entry to mmap hashmap */
-  unsigned needed_pages = size % PGSIZE;
+  unsigned needed_pages = size / PGSIZE;
   struct mmap_entry *mmap_entry = (struct mmap_entry *) malloc(sizeof(struct mmap_entry));
   mmap_entry->mmap_id = current_mmapid;
   mmap_entry->start_vaddr = vaddr;
@@ -709,7 +746,7 @@ mapid_t syscall_mmap(int fd, void* vaddr){
   struct hash_elem *insert_elem;
   insert_elem = hash_insert (&(t->mmap_hashmap), &(mmap_entry->h_elem));
   if (insert_elem != NULL) {
-    printf("mmap could not be inserted in hash map");
+    printf("mmap could not be inserted in hash map\n");
     return -1;
   }
 
@@ -746,18 +783,18 @@ void syscall_munmap (mapid_t mapping){
   void* vaddr = mmap_entry->start_vaddr;
   struct hash_elem *hash_elem = hash_delete (&(t->mmap_hashmap), &(mmap_entry->h_elem));
     if (!hash_elem){
-    printf("element which should be deleted not found");
+    printf("element which should be deleted not found\n");
     syscall_exit(-1);
   }
   mmap_hashmap_free(hash_elem, NULL);
   while(needed_pages>0){
     struct sup_page_entry* sup_page_entry = vm_sup_page_lookup (t, vaddr);
     if (!sup_page_entry){
-      printf("addr to delete does not exist");
+      printf("addr to delete does not exist\n");
       syscall_exit(-1);
     }
     if (!vm_delete_mmap_entry(sup_page_entry)){
-      printf("delete not possible");
+      printf("delete not possible\n");
       syscall_exit(-1);
     }
     needed_pages -= 1;
