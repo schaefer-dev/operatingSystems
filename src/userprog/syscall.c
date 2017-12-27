@@ -43,7 +43,8 @@ struct list_elem* get_list_elem(int fd);
 bool validate_mmap(int fd, void* vaddr);
 bool validate_mmap_address(void* vaddr);
 int syscall_mmap(int fd, void* vaddr);
-void munmap (mapid_t mapping);
+void syscall_munmap (mapid_t mapping);
+void * read_mmap_argument_at_index(struct intr_frame *f, int arg_offset);
 
 // TODO TODO TODO TODO Refactor ESP passing through everything
 
@@ -181,11 +182,14 @@ syscall_handler (struct intr_frame *f UNUSED)
       }
 
     case SYS_MMAP:
-      // project 3
+      int fd = *((int*)read_argument_at_index(f,0));
+      void *addr = read_mmap_argument_at_index(f,1);
+      f->eax = syscall_mmap(fd, addr);
       break;
 
     case SYS_MUNMAP:
-      // project 3
+      int mapping = *((int*)read_argument_at_index(f,0)); 
+      syscall_munmap(mapping);
       break;
 
     case SYS_CHDIR:
@@ -288,6 +292,13 @@ read_argument_at_index(struct intr_frame *f, int arg_offset){
   void *argument = esp + sizeof(int) + arg_offset;
   validate_pointer(argument, esp);
 
+  return argument;
+}
+
+void *
+read_mmap_argument_at_index(struct intr_frame *f, int arg_offset){
+  void *esp = (void*) f->esp;
+  void *argument = esp + sizeof(int) + arg_offset;
   return argument;
 }
 
@@ -721,7 +732,7 @@ mapid_t syscall_mmap(int fd, void* vaddr){
   return current_mmapid; 
 }
 
-void munmap (mapid_t mapping){
+void syscall_munmap (mapid_t mapping){
   struct thread *t = thread_current();
   /* get mmap entry from hash map and check if one is found */
   struct mmap_entry* mmap_entry = mmap_entry_lookup (t, mapping);
