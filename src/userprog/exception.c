@@ -201,7 +201,8 @@ page_fault (struct intr_frame *f)
       vm_load_file(fault_frame_addr);
 
     } else if ((sup_page_entry->type & PAGE_TYPE_MMAP) != 0){
-      // TODO implement loading from MMAP
+			/* loading file and loading mmap is the same in not loaded case */
+      vm_load_file(fault_frame_addr);
 
     } else {
       printf("Page not loaded, but of illegal type!\n");

@@ -184,9 +184,7 @@ syscall_handler (struct intr_frame *f UNUSED)
     case SYS_MMAP:
 			{
 		    int fd = *((int*)read_argument_at_index(f,0));
-		    void *addr = *((void**)read_argument_at_index(f,1));
-				printf("hexa vaddr:%p \n", addr);
-				printf("fd: %i\n", fd);
+		    void *addr = *((void**)read_mmap_argument_at_index(f,sizeof(int)));
 		    f->eax = syscall_mmap(fd, addr);
 		    break;
 			}
@@ -661,40 +659,12 @@ bool validate_mmap(int fd, void* vaddr){
 	}
    /* check if vaddr is 0 or not page aligned
     because this is invalid */
-	if (((uint32_t)vaddr) == 0){
-		printf("vaddr : %u \n", (uint32_t)vaddr);
-		printf("vaddr hexa : %p \n", vaddr);
-		return false;
-	}
-	if (((uint32_t)vaddr % PGSIZE) != 0){
-		printf("vaddr : %u \n", (uint32_t)vaddr);
-		printf("vaddr hexa : %p \n", vaddr);
-		printf("page size : %u \n", (uint32_t) PGSIZE);
-		printf("modulo : %u \n", ((uint32_t)vaddr % PGSIZE));
-		printf("vaddr is 0 or not page aligned \n");
-		return false;
-	}
-	if (!is_user_vaddr(vaddr)){
-		bool success = is_user_vaddr(vaddr);
-		printf("vaddr is user space:%d \n", success);
-		printf("not user_vaddr \n");
-    return false;
-	}
   if ((uint32_t)vaddr == 0 || ((uint32_t)vaddr % PGSIZE) != 0 ||
 			!(is_user_vaddr(vaddr))){
-		printf("vaddr : %u \n", (uint32_t)vaddr);
-		printf("vaddr hexa : %p \n", vaddr);
-		printf("page size : %u \n", (uint32_t) PGSIZE);
-		printf("modulo : %u \n", ((uint32_t)vaddr % PGSIZE));
-		printf("vaddr is 0 or not page aligned \n");
-		bool success = is_user_vaddr(vaddr);
-		printf("vaddr is user space:%d \n", success);
-		printf("not user_vaddr \n");
     return false;
 	}
   /* check if mapping overlaps previous mappings */
   if (vm_sup_page_lookup(thread_current(), vaddr)){
-		printf("page already mapped \n");
     return false; 
 	}
   return true;
@@ -711,10 +681,10 @@ bool validate_mmap_address(void* vaddr){
 
 /* syscall to mmap files */
 mapid_t syscall_mmap(int fd, void* vaddr){
-	printf("syscall mmap reached\n");
+	//printf("syscall mmap reached\n");
   if (!validate_mmap(fd, vaddr))
     return -1;
-	printf("validate mmap okay\n");
+	//printf("validate mmap okay\n");
   lock_acquire(&lock_filesystem);
   struct file *open_file = get_file(fd);
   if (open_file == NULL){
@@ -732,7 +702,7 @@ mapid_t syscall_mmap(int fd, void* vaddr){
   mapid_t current_mmapid = t->current_mmapid;
   t->current_mmapid += 1;
   lock_release(&lock_filesystem);
-	printf("read mmap file okay\n");
+	//printf("read mmap file okay\n");
   /* offset in file is initially 0 */
   off_t ofs=0;
 
@@ -751,7 +721,7 @@ mapid_t syscall_mmap(int fd, void* vaddr){
   }
 
   /* save file in sup_page */
-  while (size>0) 
+  while (size > PGSIZE) 
     {
       /* Calculate how to fill this page. */
       off_t page_read_bytes = size < PGSIZE ? size : PGSIZE;
@@ -769,7 +739,10 @@ mapid_t syscall_mmap(int fd, void* vaddr){
       size -= page_read_bytes;
       vaddr += PGSIZE;
     }
-  
+
+		if (!vm_sup_page_mmap_allocate (vaddr, file, ofs, size, current_mmapid, true)){
+        return -1;
+     }
   return current_mmapid; 
 }
 
@@ -787,6 +760,7 @@ void syscall_munmap (mapid_t mapping){
     syscall_exit(-1);
   }
   mmap_hashmap_free(hash_elem, NULL);
+	//TODO: this does not work with file smaller than 1 page
   while(needed_pages>0){
     struct sup_page_entry* sup_page_entry = vm_sup_page_lookup (t, vaddr);
     if (!sup_page_entry){
