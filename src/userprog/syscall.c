@@ -707,7 +707,7 @@ mapid_t syscall_mmap(int fd, void* vaddr){
   off_t ofs=0;
 
   /* add mmap_entry to mmap hashmap */
-  unsigned needed_pages = size / PGSIZE;
+  unsigned needed_pages = (size / PGSIZE)+1;
   struct mmap_entry *mmap_entry = (struct mmap_entry *) malloc(sizeof(struct mmap_entry));
   mmap_entry->mmap_id = current_mmapid;
   mmap_entry->start_vaddr = vaddr;
@@ -760,7 +760,10 @@ void syscall_munmap (mapid_t mapping){
     syscall_exit(-1);
   }
   mmap_hashmap_free(hash_elem, NULL);
+	struct file *file = NULL;
 	//TODO: this does not work with file smaller than 1 page
+	if (needed_pages == 0)
+		return;
   while(needed_pages>0){
     struct sup_page_entry* sup_page_entry = vm_sup_page_lookup (t, vaddr);
     if (!sup_page_entry){
@@ -773,6 +776,9 @@ void syscall_munmap (mapid_t mapping){
     }
     needed_pages -= 1;
     vaddr += PGSIZE;
+		file = sup_page_entry->file;
   }
+	if (file != NULL)
+		file_close(file);
 }
 
