@@ -129,6 +129,9 @@ struct thread
     // TODO initialize this hashmap in thread creation!
     /* hashmap from vm_addr -> supplemental page for efficient lookup */
     struct hash sup_page_hashmap;
+
+    /* hashmap from mmap_id -> mmap_entry for efficient lookup */
+    struct hash mmap_hashmap;
 #endif
 
     /* Owned by thread.c. */

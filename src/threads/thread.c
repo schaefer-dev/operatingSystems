@@ -765,6 +765,54 @@ struct child_process* add_child(pid_t child_pid, pid_t parent_pid){
 
   return new_child;
 }
+
+/* Hash function for supplemental page table entries */
+unsigned
+hash_mmap(const struct hash_elem *mmap_entry_, void *aux UNUSED)
+{
+  const struct mmap_entry mmap_entry= hash_entry(mmap_entry_, struct mmap_entry, h_elem);
+  unsigned hash_val = hash_int(mmap_entry->mmap_id);
+  return hash_val;
+}
+
+
+/* Hash compare function for supplemental page table entries */
+bool
+hash_compare_mmap_entry(const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED)
+{
+  const struct mmap_entry *a = hash_entry (a_, struct mmap_entry, h_elem);
+  const struct mmap_entry *b = hash_entry (b_, struct mmap_entry, h_elem);
+
+  bool result = (a->mmap_id) < (b->mmap_id);
+
+  return result;
+}
+
+
+/* returns the sup_page_entry of thread, corresponding to passed vm_addr */
+struct mmap_entry*
+mmap_entry_lookup (struct thread *thread, int mmap_id)
+{
+  struct mmap_entry search_mmap_entry;
+  struct hash_elem *hash;
+
+
+  search_mmap_entry.mmap_id = mmap_id;
+  hash = hash_find(&(thread->mmap_hashmap), &(search_mmap_entry.h_elem));
+  
+  // TODO refactor this line!
+  return hash != NULL ? hash_entry (hash, struct mmap_entry, h_elem) : NULL; 
+}
+
+
+/* close the entire hashmap and free all ressources contained in it */
+//TODO: implement this
+void
+vm_mmap_hashmap_close(struct thread *thread)
+{
+  //hash_destroy(&(thread->sup_page_hashmap), vm_sup_page_free);
+}
+
 
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */

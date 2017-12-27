@@ -664,7 +664,12 @@ mapid_t syscall_mmap(int fd, void* vaddr){
   if (!validate_mmap(fd, vaddr))
     return -1;
   lock_acquire(&lock_filesystem);
-  struct file *file = get_file(fd);
+  struct file *open_file = get_file(fd);
+  if (open_file == NULL){
+    return -1;
+  }
+  /* reopen file as mentioned in description */
+  struct file* file = file_reopen(open_file);
   if (file == NULL){
     return -1;
   }
