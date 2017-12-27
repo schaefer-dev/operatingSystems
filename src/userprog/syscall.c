@@ -182,15 +182,19 @@ syscall_handler (struct intr_frame *f UNUSED)
       }
 
     case SYS_MMAP:
-      int fd = *((int*)read_argument_at_index(f,0));
-      void *addr = read_mmap_argument_at_index(f,1);
-      f->eax = syscall_mmap(fd, addr);
-      break;
+			{
+		    int fd = *((int*)read_argument_at_index(f,0));
+		    void *addr = read_mmap_argument_at_index(f,1);
+		    f->eax = syscall_mmap(fd, addr);
+		    break;
+			}
 
     case SYS_MUNMAP:
-      int mapping = *((int*)read_argument_at_index(f,0)); 
-      syscall_munmap(mapping);
-      break;
+			{
+		    int mapping = *((int*)read_argument_at_index(f,0)); 
+		    syscall_munmap(mapping);
+		    break;
+			}
 
     case SYS_CHDIR:
       // project 4
@@ -703,9 +707,9 @@ mapid_t syscall_mmap(int fd, void* vaddr){
   mmap_entry->needed_pages = needed_pages;
 
   struct hash_elem *insert_elem;
-  insert_elem = hash_insert (&(current_thread->mmap_hashmap), &(mmap_entry->h_elem));
+  insert_elem = hash_insert (&(t->mmap_hashmap), &(mmap_entry->h_elem));
   if (insert_elem != NULL) {
-    printf("mmap could not be inserted in hash map")
+    printf("mmap could not be inserted in hash map");
     return -1;
   }
 
@@ -740,10 +744,10 @@ void syscall_munmap (mapid_t mapping){
     syscall_exit(-1);
   unsigned needed_pages = mmap_entry->needed_pages;
   void* vaddr = mmap_entry->start_vaddr;
-  struct hash_elem *hash_elem = hash_delete (t->mmap_hashmap, &(mmap_entry->h_elem));
+  struct hash_elem *hash_elem = hash_delete (&(t->mmap_hashmap), &(mmap_entry->h_elem));
     if (!hash_elem){
     printf("element which should be deleted not found");
-    return false;
+    syscall_exit(-1);
   }
   mmap_hashmap_free(hash_elem, NULL);
   while(needed_pages>0){

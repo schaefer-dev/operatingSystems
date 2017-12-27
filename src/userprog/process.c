@@ -89,7 +89,7 @@ start_process (void *file_name_)
   struct thread *current_thread = thread_current();
   vm_sup_page_init(current_thread);
 
-  hash_init(&thread->mmap_hashmap, hash_mmap, hash_compare_mmap_entry, NULL);
+  hash_init(&(current_thread->mmap_hashmap), hash_mmap, hash_compare_mmap_entry, NULL);
 
   /* write all tokens split by space(s) to current_argument_space */
   for (token = strtok_r (file_name, " ", &save_ptr); token != NULL;

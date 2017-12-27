@@ -11,6 +11,7 @@
 #include "userprog/syscall.h"
 #include "filesys/file.h"
 #include "vm/swap.h"
+#include "userprog/pagedir.h"
 
 /* Hash function for supplemental page table entries */
 unsigned
@@ -319,10 +320,10 @@ bool vm_write_mmap_back(struct sup_page_entry *sup_page_entry){
     return false;
   }
   void* vaddr = sup_page_entry->vm_addr;
-  bool dirty = pagedir_is_dirty(t->pagedir, vaddr);
+	struct thread *current_thread = sup_page_entry->thread;
+  bool dirty = pagedir_is_dirty(current_thread->pagedir, vaddr);
   if(!dirty)
     return true;
-  struct thread *current_thread = sup_page_entry->thread;
   struct file *file = sup_page_entry->file;
   off_t file_offset = sup_page_entry->file_offset;
   off_t read_bytes = sup_page_entry->read_bytes;
@@ -335,6 +336,7 @@ bool vm_write_mmap_back(struct sup_page_entry *sup_page_entry){
     return false;
   }
   lock_release(&lock_filesystem);
+	return true;
 }
 
 bool vm_delete_mmap_entry(struct sup_page_entry *sup_page_entry){

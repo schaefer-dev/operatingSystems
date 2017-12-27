@@ -770,7 +770,7 @@ struct child_process* add_child(pid_t child_pid, pid_t parent_pid){
 unsigned
 hash_mmap(const struct hash_elem *mmap_entry_, void *aux UNUSED)
 {
-  const struct mmap_entry mmap_entry= hash_entry(mmap_entry_, struct mmap_entry, h_elem);
+  const struct mmap_entry *mmap_entry= hash_entry(mmap_entry_, struct mmap_entry, h_elem);
   unsigned hash_val = hash_int(mmap_entry->mmap_id);
   return hash_val;
 }
@@ -809,7 +809,7 @@ mmap_hashmap_free(struct hash_elem *hash, void *aux UNUSED)
 {
   struct mmap_entry *lookup_mmap_entry;
   lookup_mmap_entry = hash_entry(hash, struct mmap_entry, h_elem);
-  free(mmap_entry)
+  free(lookup_mmap_entry);
 }
 
 /* close the entire hashmap and free all ressources contained in it */
