@@ -66,9 +66,6 @@ struct sup_page_entry
 
     struct hash_elem h_elem;
 
-		/* TODO: to unmap files efficientlry we need a hash map with
-			 key mmapid and a inside a list of all corresponding sup_page_entries */
-		struct list_elem l_elem;
   };
 
 unsigned hash_vm_sup_page(const struct hash_elem *sup_p_, void *aux UNUSED);
@@ -86,6 +83,8 @@ void vm_sup_page_hashmap_close(struct thread *thread);
 bool vm_load_file(void *fault_frame_addr);
 bool vm_load_swap(void *fault_frame_addr);
 bool vm_grow_stack(void *fault_frame_addr);
+bool vm_write_mmap_back(struct sup_page_entry *sup_page_entry);
+bool vm_delete_mmap_entry(struct sup_page_entry *sup_page_entry);
 
 
 #endif /* vm/sup_page.h */

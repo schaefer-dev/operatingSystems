@@ -43,6 +43,7 @@ struct list_elem* get_list_elem(int fd);
 bool validate_mmap(int fd, void* vaddr);
 bool validate_mmap_address(void* vaddr);
 int syscall_mmap(int fd, void* vaddr);
+void munmap (mapid_t mapping);
 
 // TODO TODO TODO TODO Refactor ESP passing through everything
 
@@ -683,6 +684,20 @@ mapid_t syscall_mmap(int fd, void* vaddr){
   /* offset in file is initially 0 */
   off_t ofs=0;
 
+  /* add mmap_entry to mmap hashmap */
+  unsigned needed_pages = size % PGSIZE;
+  struct mmap_entry *mmap_entry = (struct mmap_entry *) malloc(sizeof(struct mmap_entry));
+  mmap_entry->mmap_id = current_mmapid;
+  mmap_entry->start_vaddr = vaddr;
+  mmap_entry->needed_pages = needed_pages;
+
+  struct hash_elem *insert_elem;
+  insert_elem = hash_insert (&(current_thread->mmap_hashmap), &(mmap_entry->h_elem));
+  if (insert_elem != NULL) {
+    printf("mmap could not be inserted in hash map")
+    return -1;
+  }
+
   /* save file in sup_page */
   while (size>0) 
     {
@@ -704,5 +719,34 @@ mapid_t syscall_mmap(int fd, void* vaddr){
     }
   
   return current_mmapid; 
+}
+
+void munmap (mapid_t mapping){
+  struct thread *t = thread_current();
+  /* get mmap entry from hash map and check if one is found */
+  struct mmap_entry* mmap_entry = mmap_entry_lookup (t, mapping);
+  if (!mmap_entry)
+    syscall_exit(-1);
+  unsigned needed_pages = mmap_entry->needed_pages;
+  void* vaddr = mmap_entry->start_vaddr;
+  struct hash_elem *hash_elem = hash_delete (t->mmap_hashmap, &(mmap_entry->h_elem));
+    if (!hash_elem){
+    printf("element which should be deleted not found");
+    return false;
+  }
+  mmap_hashmap_free(hash_elem, NULL);
+  while(needed_pages>0){
+    struct sup_page_entry* sup_page_entry = vm_sup_page_lookup (t, vaddr);
+    if (!sup_page_entry){
+      printf("addr to delete does not exist");
+      syscall_exit(-1);
+    }
+    if (!vm_delete_mmap_entry(sup_page_entry)){
+      printf("delete not possible");
+      syscall_exit(-1);
+    }
+    needed_pages -= 1;
+    vaddr += PGSIZE;
+  }
 }
 

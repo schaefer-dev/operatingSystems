@@ -147,10 +147,13 @@ struct file_entry
     struct list_elem elem; 
   };
 
-/* Struct to save maped files of a thread in a linked list */
+/* Struct to save maped files as start address and
+  number of needed pages in a hash map with the unique
+  map id as key */
 struct mmap_entry
   {
-    struct list sup_page_list;
+    void* start_vaddr;
+    unsigned needed_pages;
     mapid_t mmap_id;
     struct hash_elem h_elem; 
   };
@@ -199,5 +202,12 @@ void sleeping_thread_insert(struct thread *, int64_t);
 void thread_terminate_child_setup(void);
 
 struct thread* get_thread(tid_t);
+
+/* Hash functions to manage mmap files */
+unsigned hash_mmap(const struct hash_elem *mmap_entry_, void *aux UNUSED);
+bool hash_compare_mmap_entry(const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED);
+struct mmap_entry* mmap_entry_lookup (struct thread *thread, int mmap_id);
+void mmap_hashmap_free(struct hash_elem *hash, void *aux UNUSED);
+void mmap_hashmap_close(struct thread *thread);
 
 #endif /* threads/thread.h */

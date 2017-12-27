@@ -89,6 +89,8 @@ start_process (void *file_name_)
   struct thread *current_thread = thread_current();
   vm_sup_page_init(current_thread);
 
+  hash_init(&thread->mmap_hashmap, hash_mmap, hash_compare_mmap_entry, NULL);
+
   /* write all tokens split by space(s) to current_argument_space */
   for (token = strtok_r (file_name, " ", &save_ptr); token != NULL;
       token = strtok_r (NULL, " ", &save_ptr))
@@ -208,6 +210,9 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+
+  /* delete allocated hashmaps */
+  mmap_hashmap_close(cur);
   vm_sup_page_hashmap_close(cur);
 
   /* Destroy the current process's page directory and switch back

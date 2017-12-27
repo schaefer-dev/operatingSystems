@@ -804,13 +804,19 @@ mmap_entry_lookup (struct thread *thread, int mmap_id)
   return hash != NULL ? hash_entry (hash, struct mmap_entry, h_elem) : NULL; 
 }
 
+void
+mmap_hashmap_free(struct hash_elem *hash, void *aux UNUSED)
+{
+  struct mmap_entry *lookup_mmap_entry;
+  lookup_mmap_entry = hash_entry(hash, struct mmap_entry, h_elem);
+  free(mmap_entry)
+}
 
 /* close the entire hashmap and free all ressources contained in it */
-//TODO: implement this
 void
-vm_mmap_hashmap_close(struct thread *thread)
+mmap_hashmap_close(struct thread *thread)
 {
-  //hash_destroy(&(thread->sup_page_hashmap), vm_sup_page_free);
+  hash_destroy(&(thread->mmap_hashmap), mmap_hashmap_free);
 }
 
 
