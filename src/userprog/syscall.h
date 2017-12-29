@@ -14,5 +14,6 @@ void syscall_exit(const int exit_type);
 
 /* locks the file system to avoid data races */
 struct lock lock_filesystem;
+struct lock lock_mmap;
 
 #endif /* userprog/syscall.h */
