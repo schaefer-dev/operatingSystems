@@ -40,9 +40,9 @@ void syscall_seek(int fd, unsigned position);
 unsigned syscall_tell(int fd);
 void syscall_close(int fd);
 struct list_elem* get_list_elem(int fd);
-bool validate_mmap(int fd, void* vaddr);
-bool validate_mmap_address(void* vaddr);
-int syscall_mmap(int fd, void* vaddr);
+bool validate_mmap(int fd, void *vaddr, void *esp);
+bool validate_mmap_address(void *vaddr, void *esp);
+int syscall_mmap(int fd, void *vaddr, void *esp);
 void syscall_munmap (mapid_t mapping);
 void * read_mmap_argument_at_index(struct intr_frame *f, int arg_offset);
 
@@ -185,7 +185,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       {
 	int fd = *((int*)read_argument_at_index(f,0));
 	void *addr = *((void**)read_mmap_argument_at_index(f,sizeof(int)));
-	f->eax = syscall_mmap(fd, addr);
+	f->eax = syscall_mmap(fd, addr, f->esp);
 	break;
       }
 
@@ -651,38 +651,49 @@ void syscall_close(int fd){
 }
 
 /* checks if vaddr is page aligned and fd is coorect */
-bool validate_mmap(int fd, void* vaddr){
+bool validate_mmap(int fd, void *vaddr, void *esp){
   /* check if fd is 0 or 1 because this is invalid */
   if( fd == 0 || fd == 1){
-		printf("fd is not correct\n");
+    printf("fd is not correct\n");
     return false;
-	}
-   /* check if vaddr is 0 or not page aligned
+  }
+
+  /* check if vaddr is 0 or not page aligned
     because this is invalid */
   if ((uint32_t)vaddr == 0 || ((uint32_t)vaddr % PGSIZE) != 0 ||
-			!(is_user_vaddr(vaddr))){
+	!(is_user_vaddr(vaddr))){
     return false;
-	}
+  }
+
   /* check if mapping overlaps previous mappings */
   if (vm_sup_page_lookup(thread_current(), vaddr)){
     return false; 
-	}
+  }
+
+  /* check if it doesnt grow over stack */
+  if (vaddr + PGSIZE >= esp)
+    return false;
+
   return true;
 }
 
 /* checks if vaddr is already mapped -> overlap
  returns false if maped address overlaps */
-bool validate_mmap_address(void* vaddr){
-   if (vm_sup_page_lookup(thread_current(), vaddr))
+bool validate_mmap_address(void *vaddr, void *esp){
+  if (vm_sup_page_lookup(thread_current(), vaddr) || !(is_user_vaddr(vaddr)))
     return false; 
+
+  /* check if it doesnt grow over stack */
+  if (vaddr + PGSIZE >= esp)
+    return false;
 
   return true;
 }
 
 /* syscall to mmap files */
-mapid_t syscall_mmap(int fd, void* vaddr){
+mapid_t syscall_mmap(int fd, void *vaddr, void *esp){
   //printf("syscall mmap reached\n");
-  if (!validate_mmap(fd, vaddr))
+  if (!validate_mmap(fd, vaddr, esp))
     return -1;
   //printf("validate mmap okay\n");
   lock_acquire(&lock_filesystem);
@@ -720,7 +731,7 @@ mapid_t syscall_mmap(int fd, void* vaddr){
       page_read_bytes = PGSIZE;
     }
 
-    if (!validate_mmap_address(vaddr)){
+    if (!validate_mmap_address(vaddr, esp)){
       return -1;
     }
 

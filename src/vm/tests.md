@@ -57,3 +57,9 @@ pintos -v -k -T 2 --qemu  --filesys-size=2 -p tests/vm/mmap-close -a mmap-close 
 
 # vm/mmap-write
 pintos -v -k -T 2 --qemu  --filesys-size=2 -p tests/vm/mmap-write -a mmap-write --swap-size=4 -- -q  -f run mmap-write < /dev/null 2> tests/vm/mmap-write.errors > tests/vm/mmap-write.output
+
+# vm/mmap-over-stk
+pintos -v -k -T 2 --qemu  --filesys-size=2 -p tests/vm/mmap-over-stk -a mmap-over-stk -p ../../tests/vm/sample.txt -a sample.txt --swap-size=4 -- -q  -f run mmap-over-stk < /dev/null 2> tests/vm/mmap-over-stk.errors > tests/vm/mmap-over-stk.output
+
+# vm/mmap-exit
+pintos -v -k -T 2 --qemu  --filesys-size=2 -p tests/vm/mmap-exit -a mmap-exit -p tests/vm/child-mm-wrt -a child-mm-wrt --swap-size=4 -- -q  -f run mmap-exit < /dev/null 2> tests/vm/mmap-exit.errors > tests/vm/mmap-exit.output
