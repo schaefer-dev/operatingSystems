@@ -229,6 +229,8 @@ vm_grow_stack(void *fault_frame_addr){
 
     struct sup_page_entry *sup_page_entry = vm_sup_page_lookup(thread, fault_frame_addr);
 
+    ASSERT(sup_page_entry != NULL);
+
     void *page = vm_frame_allocate(sup_page_entry, (PAL_ZERO | PAL_USER) , true);
 
     if (page == NULL){
