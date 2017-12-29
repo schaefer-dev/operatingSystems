@@ -183,19 +183,19 @@ syscall_handler (struct intr_frame *f UNUSED)
       }
 
     case SYS_MMAP:
-                      {
-		    int fd = *((int*)read_argument_at_index(f,0));
-		    void *addr = *((void**)read_mmap_argument_at_index(f,sizeof(int)));
-		    f->eax = syscall_mmap(fd, addr);
-		    break;
-			}
+      {
+	int fd = *((int*)read_argument_at_index(f,0));
+	void *addr = *((void**)read_mmap_argument_at_index(f,sizeof(int)));
+	f->eax = syscall_mmap(fd, addr);
+	break;
+      }
 
     case SYS_MUNMAP:
-			{
-		    int mapping = *((int*)read_argument_at_index(f,0)); 
-		    syscall_munmap(mapping);
-		    break;
-			}
+      {
+	int mapping = *((int*)read_argument_at_index(f,0)); 
+	syscall_munmap(mapping);
+	break;
+      }
 
     case SYS_CHDIR:
       // project 4
@@ -691,70 +691,73 @@ mapid_t syscall_mmap(int fd, void* vaddr){
   lock_acquire(&lock_filesystem);
   struct file *open_file = get_file(fd);
   if (open_file == NULL){
+    lock_release(&lock_filesystem);
     lock_release(&lock_mmap);
     return -1;
   }
   /* reopen file as mentioned in description */
   struct file* file = file_reopen(open_file);
   if (file == NULL){
+    lock_release(&lock_filesystem);
     lock_release(&lock_mmap);
     return -1;
   }
   unsigned size = file_length(file);
   if (size == 0){
-    return -1;
+    lock_release(&lock_filesystem);
     lock_release(&lock_mmap);
+    return -1;
   }
-  struct thread *t = thread_current();
-  mapid_t current_mmapid = t->current_mmapid;
-  t->current_mmapid += 1;
+  struct thread *thread = thread_current();
+  mapid_t current_mmapid = thread->current_mmapid;
+  thread->current_mmapid += 1;
   lock_release(&lock_filesystem);
   //printf("read mmap file okay\n");
   /* offset in file is initially 0 */
-  off_t ofs=0;
+  off_t ofs = 0;
+  void *start_vaddr = vaddr;
+
+  /* save file in sup_page */
+  while (size > 0) {
+    /* Calculate how to fill this page. */
+    off_t page_read_bytes = size;
+    if (size > PGSIZE){
+      page_read_bytes = PGSIZE;
+    }
+
+    if (!validate_mmap_address(vaddr)){
+      lock_release(&lock_mmap);
+      return -1;
+    }
+
+    /* Add page to supplemental page table */
+    // TODO: check if it is always writable
+    if (!vm_sup_page_mmap_allocate (vaddr, file, ofs, page_read_bytes, current_mmapid, true)){
+      lock_release(&lock_mmap);
+      return -1;
+    }
+
+    ofs += page_read_bytes;
+    size -= page_read_bytes;
+    vaddr += PGSIZE;
+  }
 
   /* add mmap_entry to mmap hashmap */
   unsigned needed_pages = ((size - 1) / PGSIZE) + 1;
   struct mmap_entry *mmap_entry = (struct mmap_entry *) malloc(sizeof(struct mmap_entry));
   mmap_entry->mmap_id = current_mmapid;
-  mmap_entry->start_vaddr = vaddr;
+  mmap_entry->start_vaddr = start_vaddr;
   mmap_entry->needed_pages = needed_pages;
 
   struct hash_elem *insert_elem;
-  insert_elem = hash_insert (&(t->mmap_hashmap), &(mmap_entry->h_elem));
+  insert_elem = hash_insert (&(thread->mmap_hashmap), &(mmap_entry->h_elem));
   if (insert_elem != NULL) {
     printf("mmap could not be inserted in hash map\n");
     lock_release(&lock_mmap);
     return -1;
   }
 
-  /* save file in sup_page */
-  while (size > PGSIZE) 
-    {
-      /* Calculate how to fill this page. */
-      off_t page_read_bytes = size < PGSIZE ? size : PGSIZE;
-
-      if (! validate_mmap_address(vaddr)){
-        lock_release(&lock_mmap);
-        return -1;
-      }
-
-      /* Add page to supplemental page table */
-      // TODO: check if it is always writable
-      if (!vm_sup_page_mmap_allocate (vaddr, file, ofs, page_read_bytes, current_mmapid, true)){
-        lock_release(&lock_mmap);
-        return -1;
-      }
-
-      ofs += page_read_bytes;
-      size -= page_read_bytes;
-      vaddr += PGSIZE;
-    }
-
-    if (!vm_sup_page_mmap_allocate (vaddr, file, ofs, size, current_mmapid, true)){
-      lock_release(&lock_mmap);
-      return -1;
-    }
+  lock_release(&lock_mmap);
   return current_mmapid; 
 }
 
@@ -763,29 +766,27 @@ void syscall_munmap (mapid_t mapping){
   struct thread *thread = thread_current();
   /* get mmap entry from hash map and check if one is found */
   struct mmap_entry* mmap_entry = mmap_entry_lookup (thread, mapping);
-  if (!mmap_entry){
+  if (mmap_entry == NULL){
     lock_release(&lock_mmap);
     syscall_exit(-1);
   }
+  
   unsigned needed_pages = mmap_entry->needed_pages;
   void* vaddr = mmap_entry->start_vaddr;
+  ASSERT(needed_pages > 0);
+  
   struct hash_elem *hash_elem = hash_delete (&(thread->mmap_hashmap), &(mmap_entry->h_elem));
   if (hash_elem == NULL){
     printf("element which should be deleted not found\n");
     lock_release(&lock_mmap);
     syscall_exit(-1);
   }
-  mmap_hashmap_free(hash_elem, NULL);
+  free(mmap_entry);
   struct file *file = NULL;
-  //TODO: this does not work with file smaller than 1 page
-  if (needed_pages == 0){
-    lock_release(&lock_mmap);
-    return;
-  }
 
-  while(needed_pages >0 ){
+  while(needed_pages > 0){
     struct sup_page_entry* sup_page_entry = vm_sup_page_lookup (thread, vaddr);
-    if (!sup_page_entry){
+    if (sup_page_entry == NULL){
       printf("addr to delete does not exist\n");
       lock_release(&lock_mmap);
       syscall_exit(-1);

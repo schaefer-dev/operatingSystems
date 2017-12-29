@@ -121,6 +121,7 @@ vm_evict_page(enum palloc_flags pflags){
   /* iterate over all frames until a frame is not accessed 
      (could be more than iteration) */
   // TODO do we "restart" clock algorithm with every evict start, or do we keep the iterator where we found a free page last time
+  // TODO in case of MMAP remember to set page_status to NOT_LOADED
   while (true){
       struct frame *iter_frame = list_entry (iterator, struct frame, l_elem);
       struct sup_page_entry *iter_sup_page = iter_frame->sup_page_entry;

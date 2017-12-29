@@ -314,13 +314,14 @@ vm_load_file(void *fault_frame_addr){
   return true;
 }
 
+/* writes the changes back to file if dirty */
 bool vm_write_mmap_back(struct sup_page_entry *sup_page_entry){
   if (sup_page_entry->type != PAGE_TYPE_MMAP){
     printf("try to remove mmap but entry is not of type mmap");
     return false;
   }
   void* vaddr = sup_page_entry->vm_addr;
-	struct thread *current_thread = sup_page_entry->thread;
+  struct thread *current_thread = sup_page_entry->thread;
   bool dirty = pagedir_is_dirty(current_thread->pagedir, vaddr);
   if(!dirty)
     return true;
@@ -328,6 +329,7 @@ bool vm_write_mmap_back(struct sup_page_entry *sup_page_entry){
   off_t file_offset = sup_page_entry->file_offset;
   off_t read_bytes = sup_page_entry->read_bytes;
   lock_acquire(&lock_filesystem);
+
   //TODO: check if vaddr is correct buffer address
   off_t written_bytes = file_write_at(file, vaddr, read_bytes, file_offset);
   if (written_bytes != read_bytes){
@@ -335,16 +337,18 @@ bool vm_write_mmap_back(struct sup_page_entry *sup_page_entry){
     printf("wrong number of character written back");
     return false;
   }
+
   lock_release(&lock_filesystem);
-	return true;
+  return true;
 }
 
+/* removes mmap entry from hashtable and frees! */
 bool vm_delete_mmap_entry(struct sup_page_entry *sup_page_entry){
   if (!vm_write_mmap_back(sup_page_entry))
     return false;
-  struct thread *t = sup_page_entry->thread;
-  struct hash_elem *hash_elem = hash_delete(&(t->mmap_hashmap), &(sup_page_entry->h_elem));
-  if (!hash_elem){
+  struct thread *thread = sup_page_entry->thread;
+  struct hash_elem *hash_elem = hash_delete(&(thread->sup_page_hashmap), &(sup_page_entry->h_elem));
+  if (hash_elem == NULL){
     printf("element which should be deleted not found");
     return false;
   }
