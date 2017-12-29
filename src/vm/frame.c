@@ -23,11 +23,17 @@ void* vm_evict_page(enum palloc_flags pflags);
 struct frame*
 vm_frame_lookup (void* phys_addr)
 {
-  //TODO check that frame lock is currently held when calling this function
+  //printf("DEBUG: frame lookup begin\n");
+  ASSERT(lock_held_by_current_thread(&frame_lock));
+
   struct frame *return_frame = NULL;
   struct list_elem *iterator;
 
   iterator = list_begin(&frame_list);
+
+  if (list_empty(&frame_list)){
+    return NULL;
+  }
 
   while (iterator != list_end(&frame_list)){
     struct frame *search_frame;
@@ -39,6 +45,7 @@ vm_frame_lookup (void* phys_addr)
     iterator = list_next(iterator);
   }
 
+  //printf("DEBUG: frame lookup end\n");
   return return_frame;
 }
 
@@ -55,6 +62,7 @@ vm_frame_init () {
 void*
 vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pflags, bool writable)
 {
+  //printf("DEBUG: frame allocate begin\n");
   lock_acquire (&frame_lock);
 
   // try to get page using palloc
@@ -78,6 +86,7 @@ vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pfla
   list_push_back (&frame_list, &frame->l_elem);
 
   lock_release (&frame_lock);
+  //printf("DEBUG: frame allocate end\n");
   return page;
 }
 
@@ -88,6 +97,7 @@ vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pfla
 void 
 vm_frame_free (void* phys_addr, void* upage)
 {
+  //printf("DEBUG: frame free begin\n");
   lock_acquire (&frame_lock);
 
   struct frame *found_frame = vm_frame_lookup(phys_addr);
@@ -95,6 +105,7 @@ vm_frame_free (void* phys_addr, void* upage)
   if (found_frame == NULL) {
     // the table was not found, this should be impossible!
     printf("frame not found in Frame Table!");
+    lock_release (&frame_lock);
     return;
   }
 
@@ -104,6 +115,7 @@ vm_frame_free (void* phys_addr, void* upage)
   free(found_frame);
 
   lock_release (&frame_lock);
+  //printf("DEBUG: frame free end\n");
   return;
 }
 
@@ -113,6 +125,7 @@ vm_frame_free (void* phys_addr, void* upage)
    Evict_page can only be called when the frame lock is currently held */
 void*
 vm_evict_page(enum palloc_flags pflags){
+  //printf("DEBUG: frame evict begin\n");
   ASSERT (lock_held_by_current_thread(&frame_lock));
   ASSERT (! list_empty(&frame_list));
 
@@ -157,6 +170,7 @@ vm_evict_page(enum palloc_flags pflags){
           free(iter_frame);
 
           void* phys_addr = palloc_get_page(pflags | PAL_ZERO);
+          //printf("DEBUG: frame evict end\n");
           return phys_addr;
         }
       }

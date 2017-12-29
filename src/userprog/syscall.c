@@ -785,7 +785,4 @@ void syscall_munmap (mapid_t mapping){
     vaddr += PGSIZE;
     file = sup_page_entry->file;
   }
-  if (file != NULL)
-    file_close(file);
 }
-

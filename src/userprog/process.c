@@ -709,7 +709,6 @@ void
 uninstall_page (void* upage)
 {
   struct thread *thread = thread_current();
-  struct sup_page_entry* sup_page = vm_sup_page_lookup(thread, upage);
 
   pagedir_clear_page (thread->pagedir, upage);
 }

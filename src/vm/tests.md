@@ -47,6 +47,8 @@ pintos -v -k -T 2 --qemu  --filesys-size=2 -p tests/vm/page-merge-stk -a page-me
 # vm/page-merge-mm
 pintos -v -k -T 2 --qemu  --filesys-size=2 -p tests/vm/page-merge-mm -a page-merge-mm -p tests/vm/child-qsort-mm -a child-qsort-mm --swap-size=4 -- -q  -f run page-merge-mm < /dev/null 2> tests/vm/page-merge-mm.errors > tests/vm/page-merge-mm.output
 
+
+
 # vm/mmap-read
 pintos -v -k -T 2 --qemu  --filesys-size=2 -p tests/vm/mmap-read -a mmap-read -p ../../tests/vm/sample.txt -a sample.txt --swap-size=4 -- -q  -f run mmap-read < /dev/null 2> tests/vm/mmap-read.errors > tests/vm/mmap-read.output
 
