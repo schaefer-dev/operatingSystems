@@ -53,7 +53,6 @@ syscall_init (void)
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
   lock_init (&lock_filesystem);
-  lock_init (&lock_mmap);
 }
 /* takes care of reading arguments and passing them to the correct syscall
    function */
@@ -682,30 +681,25 @@ bool validate_mmap_address(void* vaddr){
 
 /* syscall to mmap files */
 mapid_t syscall_mmap(int fd, void* vaddr){
-  lock_acquire(&lock_mmap);
   //printf("syscall mmap reached\n");
   if (!validate_mmap(fd, vaddr))
-    lock_release(&lock_mmap);
     return -1;
   //printf("validate mmap okay\n");
   lock_acquire(&lock_filesystem);
   struct file *open_file = get_file(fd);
   if (open_file == NULL){
     lock_release(&lock_filesystem);
-    lock_release(&lock_mmap);
     return -1;
   }
   /* reopen file as mentioned in description */
   struct file* file = file_reopen(open_file);
   if (file == NULL){
     lock_release(&lock_filesystem);
-    lock_release(&lock_mmap);
     return -1;
   }
   unsigned size = file_length(file);
   if (size == 0){
     lock_release(&lock_filesystem);
-    lock_release(&lock_mmap);
     return -1;
   }
   struct thread *thread = thread_current();
@@ -716,6 +710,7 @@ mapid_t syscall_mmap(int fd, void* vaddr){
   /* offset in file is initially 0 */
   off_t ofs = 0;
   void *start_vaddr = vaddr;
+  unsigned needed_pages = 0;
 
   /* save file in sup_page */
   while (size > 0) {
@@ -726,24 +721,21 @@ mapid_t syscall_mmap(int fd, void* vaddr){
     }
 
     if (!validate_mmap_address(vaddr)){
-      lock_release(&lock_mmap);
       return -1;
     }
 
     /* Add page to supplemental page table */
     // TODO: check if it is always writable
     if (!vm_sup_page_mmap_allocate (vaddr, file, ofs, page_read_bytes, current_mmapid, true)){
-      lock_release(&lock_mmap);
       return -1;
     }
-
+    needed_pages += 1;
     ofs += page_read_bytes;
     size -= page_read_bytes;
     vaddr += PGSIZE;
   }
 
   /* add mmap_entry to mmap hashmap */
-  unsigned needed_pages = ((size - 1) / PGSIZE) + 1;
   struct mmap_entry *mmap_entry = (struct mmap_entry *) malloc(sizeof(struct mmap_entry));
   mmap_entry->mmap_id = current_mmapid;
   mmap_entry->start_vaddr = start_vaddr;
@@ -753,47 +745,40 @@ mapid_t syscall_mmap(int fd, void* vaddr){
   insert_elem = hash_insert (&(thread->mmap_hashmap), &(mmap_entry->h_elem));
   if (insert_elem != NULL) {
     printf("mmap could not be inserted in hash map\n");
-    lock_release(&lock_mmap);
     return -1;
   }
 
-  lock_release(&lock_mmap);
   return current_mmapid; 
 }
 
 void syscall_munmap (mapid_t mapping){
-  lock_acquire(&lock_mmap);
   struct thread *thread = thread_current();
   /* get mmap entry from hash map and check if one is found */
-  struct mmap_entry* mmap_entry = mmap_entry_lookup (thread, mapping);
+  struct mmap_entry *mmap_entry = mmap_entry_lookup (thread, mapping);
   if (mmap_entry == NULL){
-    lock_release(&lock_mmap);
     syscall_exit(-1);
   }
   
   unsigned needed_pages = mmap_entry->needed_pages;
-  void* vaddr = mmap_entry->start_vaddr;
+  void *vaddr = mmap_entry->start_vaddr;
   ASSERT(needed_pages > 0);
   
   struct hash_elem *hash_elem = hash_delete (&(thread->mmap_hashmap), &(mmap_entry->h_elem));
   if (hash_elem == NULL){
     printf("element which should be deleted not found\n");
-    lock_release(&lock_mmap);
     syscall_exit(-1);
   }
   free(mmap_entry);
   struct file *file = NULL;
 
   while(needed_pages > 0){
-    struct sup_page_entry* sup_page_entry = vm_sup_page_lookup (thread, vaddr);
+    struct sup_page_entry *sup_page_entry = vm_sup_page_lookup (thread, vaddr);
     if (sup_page_entry == NULL){
       printf("addr to delete does not exist\n");
-      lock_release(&lock_mmap);
       syscall_exit(-1);
     }
     if (!vm_delete_mmap_entry(sup_page_entry)){
       printf("delete not possible\n");
-      lock_release(&lock_mmap);
       syscall_exit(-1);
     }
     needed_pages -= 1;
@@ -802,6 +787,5 @@ void syscall_munmap (mapid_t mapping){
   }
   if (file != NULL)
     file_close(file);
-  lock_release(&lock_mmap);
 }
 
