@@ -13,6 +13,9 @@
 #include "vm/swap.h"
 #include "userprog/pagedir.h"
 
+void vm_sup_page_free_mmap(struct sup_page_entry *sup_page_entry);
+void vm_sup_page_free_file(struct sup_page_entry *sup_page_entry);
+
 /* Hash function for supplemental page table entries */
 unsigned
 hash_vm_sup_page(const struct hash_elem *sup_p_, void *aux UNUSED)
@@ -69,24 +72,75 @@ vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED)
   struct sup_page_entry *lookup_sup_page_entry;
   lookup_sup_page_entry = hash_entry(hash, struct sup_page_entry, h_elem);
 
-  if (lookup_sup_page_entry->status == PAGE_STATUS_SWAPPED){
-    /* Case of the Page content swapped */ 
-    // TODO 
+  // TODO implement write back to disk here!
+  switch (lookup_sup_page_entry->type)
+    {
+      case PAGE_TYPE_MMAP:
+        {
+          vm_sup_page_free_mmap(lookup_sup_page_entry);
+          break;
+        }
+      case PAGE_TYPE_FILE:
+        {
+          vm_sup_page_free_file(lookup_sup_page_entry);
+          break;
+        }
+      case PAGE_TYPE_STACK:
+        {
+          /* in the case of stack nothing has to be written back */
+          break;
+        }
+    default:
+      {
+        printf("Illegal PAGE_TYPE found!\n");
+        syscall_exit(-1);
+        break;
+      }
 
-  } else if (lookup_sup_page_entry->status == PAGE_STATUS_LOADED){
-    /* Case of the Page content in physical Memory */
-    // TODO 
+    }
 
-  } else if (lookup_sup_page_entry->status == PAGE_STATUS_NOT_LOADED){
-    /* Case of the Page content not loaded */
-    // TODO
-
-  } else {
-    // TODO remove this later
-    printf("illegal page status for free, should never happen!\n");
-  }
-  
   free(lookup_sup_page_entry);
+}
+
+
+void
+vm_sup_page_free_mmap(struct sup_page_entry *sup_page_entry)
+{
+  // TODO implement write back to disk here!
+  switch (sup_page_entry->status)
+    {
+      case PAGE_STATUS_LOADED:
+        {
+          vm_write_mmap_back(sup_page_entry);
+          break;
+        }
+      case PAGE_STATUS_SWAPPED:
+        {
+          printf("MMAP page is not allowed to be swapped!\n");
+          syscall_exit(-1);
+          break;
+        }
+      case PAGE_STATUS_NOT_LOADED:
+        {
+          /* in the case of NOT_LOADED nothing has to be written back */
+          break;
+        }
+      default:
+        {
+          printf("Illegal PAGE_STATUS found!\n");
+          syscall_exit(-1);
+          break;
+        }
+
+    }
+
+}
+
+void
+vm_sup_page_free_file(struct sup_page_entry *sup_page_entry)
+{
+  // TODO
+
 }
 
 
@@ -357,5 +411,3 @@ bool vm_delete_mmap_entry(struct sup_page_entry *sup_page_entry){
   free(sup_page_entry);
   return true;
 }
-
-
