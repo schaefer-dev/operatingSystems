@@ -15,6 +15,7 @@
 
 void vm_sup_page_free_mmap(struct sup_page_entry *sup_page_entry);
 void vm_sup_page_free_file(struct sup_page_entry *sup_page_entry);
+bool vm_write_file_back_on_delete(struct sup_page_entry *sup_page_entry);
 
 /* Hash function for supplemental page table entries */
 unsigned
@@ -106,12 +107,14 @@ vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED)
 void
 vm_sup_page_free_mmap(struct sup_page_entry *sup_page_entry)
 {
-  // TODO implement write back to disk here!
   switch (sup_page_entry->status)
     {
       case PAGE_STATUS_LOADED:
         {
           vm_write_mmap_back(sup_page_entry);
+          void *phys_addr = sup_page_entry->phys_addr;
+          void *upage = sup_page_entry->vm_addr;
+          vm_frame_free(phys_addr, upage);
           break;
         }
       case PAGE_STATUS_SWAPPED:
@@ -139,7 +142,34 @@ vm_sup_page_free_mmap(struct sup_page_entry *sup_page_entry)
 void
 vm_sup_page_free_file(struct sup_page_entry *sup_page_entry)
 {
-  // TODO
+    switch (sup_page_entry->status)
+    {
+      case PAGE_STATUS_LOADED:
+        {
+          vm_write_file_back_on_delete(sup_page_entry);
+          void *phys_addr = sup_page_entry->phys_addr;
+          void *upage = sup_page_entry->vm_addr;
+          vm_frame_free(phys_addr, upage);
+          break;
+        }
+      case PAGE_STATUS_SWAPPED:
+        {
+          //TODO: implement this
+          break;
+        }
+      case PAGE_STATUS_NOT_LOADED:
+        {
+          /* in the case of NOT_LOADED nothing has to be written back */
+          break;
+        }
+      default:
+        {
+          printf("Illegal PAGE_STATUS found!\n");
+          syscall_exit(-1);
+          break;
+        }
+
+    }
 
 }
 
@@ -386,7 +416,34 @@ bool vm_write_mmap_back(struct sup_page_entry *sup_page_entry){
   off_t read_bytes = sup_page_entry->read_bytes;
   lock_acquire(&lock_filesystem);
 
-  //TODO: check if vaddr is correct buffer address
+  off_t written_bytes = file_write_at(file, vaddr, read_bytes, file_offset);
+  if (written_bytes != read_bytes){
+    lock_release(&lock_filesystem);
+    printf("wrong number of character written back");
+    return false;
+  }
+
+  lock_release(&lock_filesystem);
+  return true;
+}
+
+/* writes the changes back to file if dirty only used if sup page will
+  deleted */
+bool vm_write_file_back_on_delete(struct sup_page_entry *sup_page_entry){
+  if (sup_page_entry->type != PAGE_TYPE_FILE){
+    printf("try to remove a file but entry is not of type file");
+    return false;
+  }
+  void* vaddr = sup_page_entry->vm_addr;
+  struct thread *current_thread = sup_page_entry->thread;
+  bool dirty = pagedir_is_dirty(current_thread->pagedir, vaddr);
+  if(!dirty)
+    return true;
+  struct file *file = sup_page_entry->file;
+  off_t file_offset = sup_page_entry->file_offset;
+  off_t read_bytes = sup_page_entry->read_bytes;
+  lock_acquire(&lock_filesystem);
+
   off_t written_bytes = file_write_at(file, vaddr, read_bytes, file_offset);
   if (written_bytes != read_bytes){
     lock_release(&lock_filesystem);
