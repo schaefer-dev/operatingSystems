@@ -7,6 +7,7 @@
 #include "vm/frame.h"
 #include "userprog/pagedir.h"
 #include "vm/swap.h"
+#include "vm/sup_page.h"
 
 
 /* lock to guarantee mutal exclusiveness on frame operations */
@@ -16,6 +17,10 @@ static struct lock frame_lock;
 static struct list frame_list;
 
 void* vm_evict_page(enum palloc_flags pflags);
+
+void vm_evict_file(struct sup_page_entry *sup_page_entry, struct frame *frame);
+void vm_evict_stack(struct sup_page_entry *sup_page_entry, struct frame *frame);
+void vm_evict_mmap(struct sup_page_entry *sup_page_entry);
 
 // TODO implement hash map again for faster frame lookup
 
@@ -147,12 +152,32 @@ vm_evict_page(enum palloc_flags pflags){
             and don't evict this page in this iteration */
          pagedir_set_accessed(page_thread->pagedir, iter_sup_page->vm_addr, false);
       } else {
-        // page is not accessed (can be evicted)-> check if it is dirty
-        bool dirty = pagedir_is_dirty(page_thread->pagedir, iter_sup_page->vm_addr);
-        if (dirty){
-          //TODO: treat this different if MMAP is used
 
-        } else {
+          switch (iter_sup_page->type)
+          {
+            case PAGE_TYPE_MMAP:
+              {
+                vm_evict_mmap(iter_sup_page)
+                break;
+              }
+            case PAGE_TYPE_FILE:
+              {
+                vm_evict_file(iter_sup_page, iter_frame);
+                break;
+              }
+            case PAGE_TYPE_STACK:
+              {
+                vm_evict_stack(iter_sup_page, iter_frame);
+                break;
+              }
+          default:
+            {
+              printf("Illegal PAGE_TYPE found!\n");
+              syscall_exit(-1);
+              break;
+            }
+
+          }
           // file is not dirty and not accessed -> simply free frame
           vm_swap_page(iter_frame->phys_addr);
 
@@ -162,7 +187,6 @@ vm_evict_page(enum palloc_flags pflags){
               are placed in the swap partition 
           */
           palloc_free_page(iter_frame->phys_addr);
-          iter_sup_page->status = PAGE_STATUS_SWAPPED;
           iter_sup_page->phys_addr = NULL;
 
           pagedir_clear_page(page_thread->pagedir, iter_sup_page->vm_addr);
@@ -186,6 +210,34 @@ vm_evict_page(enum palloc_flags pflags){
   }
   // should never be reached
   return NULL;
+}
+
+/* writes file content to swap if necessary(page is dirty) and sets the status
+  based on wheter it was dirty or not */
+void vm_evict_file(struct sup_page_entry *sup_page_entry, struct frame *frame){
+  struct thread *thread = sup_page_entry->thread;
+  bool dirty = pagedir_is_dirty(thread->pagedir, sup_page_entry->vm_addr);
+  if (dirty){
+    /* changed content has to be written to swap partition */
+    iter_sup_page->status = PAGE_STATUS_SWAPPED;
+    vm_swap_page(frame->phys_addr);
+  } else {
+    /* nothing has changed, content can simply be loaded from file */
+    iter_sup_page->status = PAGE_STATUS_NOT_LOADED;
+  }
+}
+
+/* writes page content to swap and sets the status */
+void vm_evict_stack(struct sup_page_entry *sup_page_entry, struct frame *frame){
+  iter_sup_page->status = PAGE_STATUS_SWAPPED;
+  vm_swap_page(frame->phys_addr);
+}
+
+/* writes mmap file content back to file if necessary(page is dirty) and sets 
+  the status to not loaded b.c. we always load from file */
+void vm_evict_mmap(struct sup_page_entry *sup_page_entry){
+  iter_sup_page->status = PAGE_STATUS_NOT_LOADED;
+  vm_write_mmap_back(sup_page_entry);
 }
 
 // TODO use frame_list to iterate over it in clock algorithm
