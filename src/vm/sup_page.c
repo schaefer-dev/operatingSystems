@@ -112,9 +112,9 @@ vm_sup_page_free_mmap(struct sup_page_entry *sup_page_entry)
       case PAGE_STATUS_LOADED:
         {
           vm_write_mmap_back(sup_page_entry);
-          void *phys_addr = sup_page_entry->phys_addr;
-          void *upage = sup_page_entry->vm_addr;
-          vm_frame_free(phys_addr, upage);
+          //void *phys_addr = sup_page_entry->phys_addr;
+          //void *upage = sup_page_entry->vm_addr;
+          //vm_frame_free(phys_addr, upage);
           break;
         }
       case PAGE_STATUS_SWAPPED:
@@ -146,10 +146,10 @@ vm_sup_page_free_file(struct sup_page_entry *sup_page_entry)
     {
       case PAGE_STATUS_LOADED:
         {
-          vm_write_file_back_on_delete(sup_page_entry);
-          void *phys_addr = sup_page_entry->phys_addr;
-          void *upage = sup_page_entry->vm_addr;
-          vm_frame_free(phys_addr, upage);
+          //vm_write_file_back_on_delete(sup_page_entry);
+          //void *phys_addr = sup_page_entry->phys_addr;
+          //void *upage = sup_page_entry->vm_addr;
+          //vm_frame_free(phys_addr, upage);
           break;
         }
       case PAGE_STATUS_SWAPPED:
