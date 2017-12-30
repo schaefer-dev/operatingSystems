@@ -157,7 +157,7 @@ vm_evict_page(enum palloc_flags pflags){
           {
             case PAGE_TYPE_MMAP:
               {
-                vm_evict_mmap(iter_sup_page)
+                vm_evict_mmap(iter_sup_page);
                 break;
               }
             case PAGE_TYPE_FILE:
@@ -196,7 +196,6 @@ vm_evict_page(enum palloc_flags pflags){
           void* phys_addr = palloc_get_page(pflags | PAL_ZERO);
           //printf("DEBUG: frame evict end\n");
           return phys_addr;
-        }
       }
 
 
@@ -219,24 +218,24 @@ void vm_evict_file(struct sup_page_entry *sup_page_entry, struct frame *frame){
   bool dirty = pagedir_is_dirty(thread->pagedir, sup_page_entry->vm_addr);
   if (dirty){
     /* changed content has to be written to swap partition */
-    iter_sup_page->status = PAGE_STATUS_SWAPPED;
+    sup_page_entry->status = PAGE_STATUS_SWAPPED;
     vm_swap_page(frame->phys_addr);
   } else {
     /* nothing has changed, content can simply be loaded from file */
-    iter_sup_page->status = PAGE_STATUS_NOT_LOADED;
+    sup_page_entry->status = PAGE_STATUS_NOT_LOADED;
   }
 }
 
 /* writes page content to swap and sets the status */
 void vm_evict_stack(struct sup_page_entry *sup_page_entry, struct frame *frame){
-  iter_sup_page->status = PAGE_STATUS_SWAPPED;
+  sup_page_entry->status = PAGE_STATUS_SWAPPED;
   vm_swap_page(frame->phys_addr);
 }
 
 /* writes mmap file content back to file if necessary(page is dirty) and sets 
   the status to not loaded b.c. we always load from file */
 void vm_evict_mmap(struct sup_page_entry *sup_page_entry){
-  iter_sup_page->status = PAGE_STATUS_NOT_LOADED;
+  sup_page_entry->status = PAGE_STATUS_NOT_LOADED;
   vm_write_mmap_back(sup_page_entry);
 }
 
