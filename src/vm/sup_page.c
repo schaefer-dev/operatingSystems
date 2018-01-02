@@ -1,6 +1,7 @@
 #include <hash.h>
 #include <list.h>
 #include "lib/kernel/list.h"
+#include "threads/vaddr.h"
 #include "threads/palloc.h"
 #include "threads/malloc.h"
 #include "filesys/file.h"
@@ -146,7 +147,7 @@ vm_sup_page_free_file(struct sup_page_entry *sup_page_entry)
     {
       case PAGE_STATUS_LOADED:
         {
-          //vm_write_file_back_on_delete(sup_page_entry);
+          vm_write_file_back_on_delete(sup_page_entry);
           //void *phys_addr = sup_page_entry->phys_addr;
           //void *upage = sup_page_entry->vm_addr;
           //vm_frame_free(phys_addr, upage);
@@ -225,6 +226,7 @@ and the offset within the file*/
 bool
 vm_sup_page_file_allocate (void *vm_addr, struct file* file, off_t file_offset, off_t read_bytes, bool writable)
 {
+  ASSERT(file_offset % PGSIZE == 0);
   // TODO implement writable parameter
   // TODO Frame Loading happens in page fault, we use round down (defined in vaddr.h) 
   // to get the supplemental page using the sup_page_hashmap
@@ -266,6 +268,7 @@ bool
 vm_sup_page_mmap_allocate (void *vm_addr, struct file* file, off_t file_offset, 
   off_t read_bytes, int mmap_id, bool writable)
 {
+  ASSERT(file_offset % PGSIZE == 0);
   // TODO implement writable parameter
   // TODO Frame Loading happens in page fault, we use round down (defined in vaddr.h) 
   // to get the supplemental page using the sup_page_hashmap
@@ -407,6 +410,7 @@ bool vm_write_mmap_back(struct sup_page_entry *sup_page_entry){
     return false;
   }
   void* vaddr = sup_page_entry->vm_addr;
+  void* phys_addr = sup_page_entry->phys_addr;
   struct thread *current_thread = sup_page_entry->thread;
   bool dirty = pagedir_is_dirty(current_thread->pagedir, vaddr);
   if(!dirty)
@@ -417,11 +421,6 @@ bool vm_write_mmap_back(struct sup_page_entry *sup_page_entry){
   lock_acquire(&lock_filesystem);
 
   off_t written_bytes = file_write_at(file, vaddr, read_bytes, file_offset);
-  if (written_bytes != read_bytes){
-    lock_release(&lock_filesystem);
-    printf("wrong number of character written back");
-    return false;
-  }
 
   lock_release(&lock_filesystem);
   return true;
@@ -435,7 +434,10 @@ bool vm_write_file_back_on_delete(struct sup_page_entry *sup_page_entry){
     return false;
   }
   void* vaddr = sup_page_entry->vm_addr;
+  void* phys_addr = sup_page_entry->phys_addr;
   struct thread *current_thread = sup_page_entry->thread;
+  if (!sup_page_entry->writable)
+    return true;
   bool dirty = pagedir_is_dirty(current_thread->pagedir, vaddr);
   if(!dirty)
     return true;
@@ -444,12 +446,7 @@ bool vm_write_file_back_on_delete(struct sup_page_entry *sup_page_entry){
   off_t read_bytes = sup_page_entry->read_bytes;
   lock_acquire(&lock_filesystem);
 
-  off_t written_bytes = file_write_at(file, vaddr, read_bytes, file_offset);
-  if (written_bytes != read_bytes){
-    lock_release(&lock_filesystem);
-    printf("wrong number of character written back");
-    return false;
-  }
+  off_t written_bytes = file_write_at(file, phys_addr, read_bytes, file_offset);
 
   lock_release(&lock_filesystem);
   return true;

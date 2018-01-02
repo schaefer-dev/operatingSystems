@@ -565,7 +565,6 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (ofs % PGSIZE == 0);
   //printf("DEBUG: Load segment called!\n");
 
-  file_seek (file, ofs);
   while (read_bytes > 0 || zero_bytes > 0) 
     {
       /* Calculate how to fill this page.
@@ -576,7 +575,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
       /* Add page to supplemental page table */
       //TODO ensure if page is loaded ZERO bytes are added simply use PAL_ZERO in every palloc_get_page?
-      if (!vm_sup_page_file_allocate (upage, file, ofs, page_read_bytes, writable)){
+      if (!vm_sup_page_file_allocate (upage, file, (int32_t)ofs, (int32_t)page_read_bytes, writable)){
         //printf("DEBUG: Load segment failed!\n");
         return false;
       }
@@ -584,7 +583,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
       /* Advance. */
       // TODO: page_read_bytes is uint32_t BUT ofs is int32_t !!!!!!! broken
-      ofs += page_read_bytes;
+      ofs += PGSIZE;
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
