@@ -10,8 +10,6 @@
 #include "vm/sup_page.h"
 
 
-/* lock to guarantee mutal exclusiveness on frame operations */
-static struct lock frame_lock;
 
 /* list of all frames */
 static struct list frame_list;
@@ -68,6 +66,7 @@ void*
 vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pflags, bool writable)
 {
   //printf("DEBUG: frame allocate begin\n");
+  ASSERT(!lock_held_by_current_thread(&frame_lock));
   lock_acquire (&frame_lock);
 
   // try to get page using palloc
@@ -105,6 +104,7 @@ void
 vm_frame_free (void *phys_addr, void *upage)
 {
   //printf("DEBUG: frame free begin\n");
+  ASSERT(!lock_held_by_current_thread(&frame_lock));
   lock_acquire (&frame_lock);
 
   struct frame *found_frame = vm_frame_lookup(phys_addr);
@@ -134,7 +134,7 @@ void*
 vm_evict_page(enum palloc_flags pflags){
   //printf("DEBUG: frame evict begin\n");
   ASSERT (lock_held_by_current_thread(&frame_lock));
-  ASSERT (! list_empty(&frame_list));
+  ASSERT (!list_empty(&frame_list));
 
   struct list_elem *iterator = list_begin (&frame_list);
 
@@ -143,12 +143,16 @@ vm_evict_page(enum palloc_flags pflags){
   // TODO do we "restart" clock algorithm with every evict start, or do we keep the iterator where we found a free page last time
   // TODO in case of MMAP remember to set page_status to NOT_LOADED
   while (true){
+      printf("DEBUG: iteration started\n");
       struct frame *iter_frame = list_entry (iterator, struct frame, l_elem);
+      printf("DEBUG: list entry successfully created\n");
       struct sup_page_entry *iter_sup_page = iter_frame->sup_page_entry;
       struct thread *page_thread = iter_sup_page->thread;
       // TODO: check if vm_addr has to be round_up or round_down
       // check if access bit is 0
+      //printf("DEBUG: pagedir is accessed start\n");
       bool accessed_bit = pagedir_is_accessed(page_thread->pagedir, iter_sup_page->vm_addr);
+      //printf("DEBUG: pagedir is accessed finished\n");
       if (accessed_bit){
          /* page was accessed since previous iteration -> set accessed bit to 0 
             and don't evict this page in this iteration */
@@ -159,16 +163,19 @@ vm_evict_page(enum palloc_flags pflags){
           {
             case PAGE_TYPE_MMAP:
               {
+                //printf("DEBUG: evicting MMAP case\n");
                 vm_evict_mmap(iter_sup_page);
                 break;
               }
             case PAGE_TYPE_FILE:
               {
+                //printf("DEBUG: evicting FILE case\n");
                 vm_evict_file(iter_sup_page, iter_frame);
                 break;
               }
             case PAGE_TYPE_STACK:
               {
+                //printf("DEBUG: evicting STACK case\n");
                 vm_evict_stack(iter_sup_page, iter_frame);
                 break;
               }
@@ -180,18 +187,19 @@ vm_evict_page(enum palloc_flags pflags){
             }
 
           }
-          // file is not dirty and not accessed -> simply free frame
-          vm_swap_page(iter_frame->phys_addr);
-
+          //printf("DEBUG: removing from list started\n");
           // remove frame from list
           list_remove(&iter_frame->l_elem);
+          //printf("DEBUG: removing from list finished\n");
           /* free page and set phys_addr in sup_page to NULL and status to swapped b.c. the data of the frame
               are placed in the swap partition 
           */
           palloc_free_page(iter_frame->phys_addr);
           iter_sup_page->phys_addr = NULL;
 
+          //printf("DEBUG: removing from pagedir started\n");
           pagedir_clear_page(page_thread->pagedir, iter_sup_page->vm_addr);
+          //printf("DEBUG: removing from pagedir finished\n");
           // delete the frame entry and allocate a new page
           free(iter_frame);
 
@@ -202,14 +210,19 @@ vm_evict_page(enum palloc_flags pflags){
 
 
       // page was accessed -> look at next frame if accessed
-      iterator = list_next(iterator);
-      if (iterator == list_end (&frame_list)){
+      //printf("DEBUG: set iterator to next element\n");
+      if (iterator == list_tail (&frame_list)){
         /* all pages were accessed -> start again with first element to find 
            a page which was not accessed recently */
+        //printf("DEBUG: continue with frame list begin again\n");
         iterator = list_begin(&frame_list);
-      }  
+      } else {
+        iterator = list_next(iterator);
+        //printf("DEBUG: continue with next list entry\n");
+      }
   }
   // should never be reached
+  //printf("DEBUG: frame evict end\n");
   return NULL;
 }
 
@@ -220,8 +233,8 @@ void vm_evict_file(struct sup_page_entry *sup_page_entry, struct frame *frame){
   bool dirty = pagedir_is_dirty(thread->pagedir, sup_page_entry->vm_addr);
   if (dirty){
     /* changed content has to be written to swap partition */
-    sup_page_entry->status = PAGE_STATUS_SWAPPED;
     vm_swap_page(frame->phys_addr);
+    sup_page_entry->status = PAGE_STATUS_SWAPPED;
   } else {
     /* nothing has changed, content can simply be loaded from file */
     sup_page_entry->status = PAGE_STATUS_NOT_LOADED;
@@ -230,15 +243,15 @@ void vm_evict_file(struct sup_page_entry *sup_page_entry, struct frame *frame){
 
 /* writes page content to swap and sets the status */
 void vm_evict_stack(struct sup_page_entry *sup_page_entry, struct frame *frame){
-  sup_page_entry->status = PAGE_STATUS_SWAPPED;
   vm_swap_page(frame->phys_addr);
+  sup_page_entry->status = PAGE_STATUS_SWAPPED;
 }
 
 /* writes mmap file content back to file if necessary(page is dirty) and sets 
   the status to not loaded b.c. we always load from file */
 void vm_evict_mmap(struct sup_page_entry *sup_page_entry){
-  sup_page_entry->status = PAGE_STATUS_NOT_LOADED;
   vm_write_mmap_back(sup_page_entry);
+  sup_page_entry->status = PAGE_STATUS_NOT_LOADED;
 }
 
 // TODO use frame_list to iterate over it in clock algorithm

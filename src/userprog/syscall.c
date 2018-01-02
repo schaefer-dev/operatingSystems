@@ -15,6 +15,7 @@
 #include "filesys/file.h"
 #include "userprog/pagedir.h"
 #include "vm/sup_page.h"
+#include "vm/frame.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -333,6 +334,8 @@ syscall_exit(const int exit_type){
 
   if (lock_held_by_current_thread(&lock_filesystem))
     lock_release(&lock_filesystem);
+  if (lock_held_by_current_thread(&frame_lock))
+    lock_release(&frame_lock);
 
   /* close all files in this thread and free ressources */
   clear_files();
