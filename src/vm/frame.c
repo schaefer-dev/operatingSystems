@@ -132,7 +132,7 @@ vm_frame_free (void *phys_addr, void *upage)
    Evict_page can only be called when the frame lock is currently held */
 void*
 vm_evict_page(enum palloc_flags pflags){
-  //printf("DEBUG: frame evict begin\n");
+  printf("DEBUG: frame evict begin\n");
   ASSERT (lock_held_by_current_thread(&frame_lock));
   ASSERT (!list_empty(&frame_list));
 
@@ -146,13 +146,32 @@ vm_evict_page(enum palloc_flags pflags){
       printf("DEBUG: iteration started\n");
       struct frame *iter_frame = list_entry (iterator, struct frame, l_elem);
       printf("DEBUG: list entry successfully created\n");
+      if (iter_frame == NULL)
+        printf("DEBUG: Iter Frame is NULL\n");
       struct sup_page_entry *iter_sup_page = iter_frame->sup_page_entry;
+      printf("DEBUG: sup page entry read from iter frame successfully\n");
+      if (iter_sup_page == NULL){
+        // TODO this should never happen? Search for the reason
+        printf("DEBUG: Iter sup page is NULL -> skipping\n");
+        // page was accessed -> look at next frame if accessed
+        printf("DEBUG: set iterator to next element\n");
+        if (iterator == list_tail (&frame_list)){
+          /* all pages were accessed -> start again with first element to find 
+            a page which was not accessed recently */
+          printf("DEBUG: continue with frame list begin again\n");
+          iterator = list_begin(&frame_list);
+        } else {
+          iterator = list_next(iterator);
+          printf("DEBUG: continue with next list entry\n");
+        }
+        continue;
+      }
       struct thread *page_thread = iter_sup_page->thread;
       // TODO: check if vm_addr has to be round_up or round_down
       // check if access bit is 0
-      //printf("DEBUG: pagedir is accessed start\n");
+      printf("DEBUG: pagedir is accessed start\n");
       bool accessed_bit = pagedir_is_accessed(page_thread->pagedir, iter_sup_page->vm_addr);
-      //printf("DEBUG: pagedir is accessed finished\n");
+      printf("DEBUG: pagedir is accessed finished\n");
       if (accessed_bit){
          /* page was accessed since previous iteration -> set accessed bit to 0 
             and don't evict this page in this iteration */
@@ -163,19 +182,19 @@ vm_evict_page(enum palloc_flags pflags){
           {
             case PAGE_TYPE_MMAP:
               {
-                //printf("DEBUG: evicting MMAP case\n");
+                printf("DEBUG: evicting MMAP case\n");
                 vm_evict_mmap(iter_sup_page);
                 break;
               }
             case PAGE_TYPE_FILE:
               {
-                //printf("DEBUG: evicting FILE case\n");
+                printf("DEBUG: evicting FILE case\n");
                 vm_evict_file(iter_sup_page, iter_frame);
                 break;
               }
             case PAGE_TYPE_STACK:
               {
-                //printf("DEBUG: evicting STACK case\n");
+                printf("DEBUG: evicting STACK case\n");
                 vm_evict_stack(iter_sup_page, iter_frame);
                 break;
               }
@@ -187,42 +206,42 @@ vm_evict_page(enum palloc_flags pflags){
             }
 
           }
-          //printf("DEBUG: removing from list started\n");
+          printf("DEBUG: removing from list started\n");
           // remove frame from list
           list_remove(&iter_frame->l_elem);
-          //printf("DEBUG: removing from list finished\n");
+          printf("DEBUG: removing from list finished\n");
           /* free page and set phys_addr in sup_page to NULL and status to swapped b.c. the data of the frame
               are placed in the swap partition 
           */
           palloc_free_page(iter_frame->phys_addr);
           iter_sup_page->phys_addr = NULL;
 
-          //printf("DEBUG: removing from pagedir started\n");
+          printf("DEBUG: removing from pagedir started\n");
           pagedir_clear_page(page_thread->pagedir, iter_sup_page->vm_addr);
-          //printf("DEBUG: removing from pagedir finished\n");
+          printf("DEBUG: removing from pagedir finished\n");
           // delete the frame entry and allocate a new page
           free(iter_frame);
 
           void* phys_addr = palloc_get_page(pflags | PAL_ZERO);
-          //printf("DEBUG: frame evict end\n");
+          printf("DEBUG: frame evict end\n");
           return phys_addr;
       }
 
 
       // page was accessed -> look at next frame if accessed
-      //printf("DEBUG: set iterator to next element\n");
+      printf("DEBUG: set iterator to next element\n");
       if (iterator == list_tail (&frame_list)){
         /* all pages were accessed -> start again with first element to find 
            a page which was not accessed recently */
-        //printf("DEBUG: continue with frame list begin again\n");
+        printf("DEBUG: continue with frame list begin again\n");
         iterator = list_begin(&frame_list);
       } else {
         iterator = list_next(iterator);
-        //printf("DEBUG: continue with next list entry\n");
+        printf("DEBUG: continue with next list entry\n");
       }
   }
   // should never be reached
-  //printf("DEBUG: frame evict end\n");
+  printf("DEBUG: frame evict end\n");
   return NULL;
 }
 
@@ -233,18 +252,22 @@ void vm_evict_file(struct sup_page_entry *sup_page_entry, struct frame *frame){
   bool dirty = pagedir_is_dirty(thread->pagedir, sup_page_entry->vm_addr);
   if (dirty){
     /* changed content has to be written to swap partition */
-    vm_swap_page(frame->phys_addr);
+    printf("DEBUG: Evicting file case dirty!\n");
+    block_sector_t swap_block = vm_swap_page(frame->phys_addr);
     sup_page_entry->status = PAGE_STATUS_SWAPPED;
+    sup_page_entry->swap_addr = swap_block;
   } else {
     /* nothing has changed, content can simply be loaded from file */
+    printf("DEBUG: Evicting file case not dirty!\n");
     sup_page_entry->status = PAGE_STATUS_NOT_LOADED;
   }
 }
 
 /* writes page content to swap and sets the status */
 void vm_evict_stack(struct sup_page_entry *sup_page_entry, struct frame *frame){
-  vm_swap_page(frame->phys_addr);
+  block_sector_t swap_block = vm_swap_page(frame->phys_addr);
   sup_page_entry->status = PAGE_STATUS_SWAPPED;
+  sup_page_entry->swap_addr = swap_block;
 }
 
 /* writes mmap file content back to file if necessary(page is dirty) and sets 

@@ -17,6 +17,7 @@
 #ifdef USERPROG
 #include "vm/sup_page.h"
 #include "vm/frame.h"
+#include "vm/swap.h"
 #include "userprog/process.h"
 #endif
 
@@ -119,6 +120,7 @@ thread_init (void)
   initial_thread->tid = allocate_tid ();
 
   vm_frame_init();
+  vm_swap_init();
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.

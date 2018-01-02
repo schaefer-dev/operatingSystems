@@ -29,6 +29,7 @@ vm_swap_init(void)
     if (swap == NULL){
         PANIC ("No SWAP disk declared!");
     }
+
     swap_size = block_size(swap);
     swap_free_bitmap = bitmap_create(swap_size);
     bitmap_set_all (swap_free_bitmap, true);
@@ -68,9 +69,12 @@ block_sector_t
 vm_swap_page(void *phys_addr)
 {
   // TODO verify page reference? is_uservaddr?
+  printf("DEBUG: vm_swap_page tries to acquire lock\n");
   lock_acquire(&swap_lock);
 
+  printf("DEBUG: vm_swap_get_free started\n");
   block_sector_t free_sector = vm_swap_get_free();
+  printf("DEBUG: vm_swap_get_free completed\n");
 
   /* write SECTORS_FOR_PAGE amount of blocks into swap starting at block free_sector */
   block_sector_t sector_iterator = 0;
@@ -82,6 +86,7 @@ vm_swap_page(void *phys_addr)
   }
 
   lock_release(&swap_lock);
+  printf("DEBUG: vm_swap_page completed \n");
   return free_sector;
 }
 
