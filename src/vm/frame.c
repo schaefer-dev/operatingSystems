@@ -26,7 +26,7 @@ void vm_evict_mmap(struct sup_page_entry *sup_page_entry);
 
 
 struct frame*
-vm_frame_lookup (void* phys_addr)
+vm_frame_lookup (void *phys_addr)
 {
   //printf("DEBUG: frame lookup begin\n");
   ASSERT(lock_held_by_current_thread(&frame_lock));
@@ -81,6 +81,7 @@ vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pfla
   }
 
   struct frame *frame = malloc(sizeof(struct frame));
+  sup_page_entry->phys_addr = page;
   frame->phys_addr = page;
   frame->sup_page_entry = sup_page_entry;
   frame->pinned = false;
@@ -95,12 +96,13 @@ vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pfla
   return page;
 }
 
+
 /* called from vm_sup_page_free if page is currently loaded
    in frames. 
    Frees the frame structure and removes it from pagedir of
    the current thread. */
 void 
-vm_frame_free (void* phys_addr, void* upage)
+vm_frame_free (void *phys_addr, void *upage)
 {
   //printf("DEBUG: frame free begin\n");
   lock_acquire (&frame_lock);
@@ -109,7 +111,7 @@ vm_frame_free (void* phys_addr, void* upage)
 
   if (found_frame == NULL) {
     // the table was not found, this should be impossible!
-    printf("frame not found in Frame Table!");
+    printf("frame at %p not found in Frame Table!\n", phys_addr);
     lock_release (&frame_lock);
     return;
   }
