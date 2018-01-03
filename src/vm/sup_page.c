@@ -64,6 +64,40 @@ vm_sup_page_hashmap_close(struct thread *thread)
   hash_destroy(&(thread->sup_page_hashmap), vm_sup_page_free);
 }
 
+void
+vm_sup_page_load (struct sup_page_entry *sup_page_entry){
+  struct thread *current_thread = thread_current();
+
+  switch (sup_page_entry->status)
+    {
+      case PAGE_STATUS_NOT_LOADED:
+        {
+          /* can only happen for FILE / MMAP */
+          vm_load_file(sup_page_entry->vm_addr);
+          break;
+        }
+
+      case PAGE_STATUS_SWAPPED:
+        {
+          vm_load_swap(sup_page_entry->vm_addr);
+          break;
+        }
+
+      case PAGE_STATUS_LOADED:
+        {
+          /* page already loaded! */
+          if (pagedir_get_page (current_thread->pagedir, sup_page_entry->vm_addr) == false){
+            syscall_exit(-1);
+          }
+          return;
+        }
+      default:
+        {
+          printf("Illegal page status in sup_page_load!\n");
+        }
+    }
+}
+
 
 /* free the ressources of the page with the corresponding hash_elem 
    this function should only be used by hash_destroy! */

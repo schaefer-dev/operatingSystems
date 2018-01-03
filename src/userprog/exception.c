@@ -193,40 +193,8 @@ page_fault (struct intr_frame *f)
       syscall_exit(-1);
     }
 
-  } else if ((sup_page_entry->status & PAGE_STATUS_NOT_LOADED) != 0){
-    /* case page not loaded */
-    // TODO refactor and use pass type to function and use switch over type
-    if ((sup_page_entry->type & PAGE_TYPE_FILE) != 0){
-      //printf("DEBUG: load_file called!\n");
-      vm_load_file(fault_frame_addr);
-
-    } else if ((sup_page_entry->type & PAGE_TYPE_MMAP) != 0){
-			/* loading file and loading mmap is the same in not loaded case */
-      vm_load_file(fault_frame_addr);
-
-    } else {
-      printf("Page not loaded, but of illegal type!\n");
-    }
-
-  } else if ((sup_page_entry->status & PAGE_STATUS_SWAPPED) != 0){
-      /* case page swapped -> load from swap to phys memory */
-      vm_load_swap(fault_frame_addr);
-
-  } else if (pagedir_get_page (thread->pagedir, fault_addr) == false){
-    syscall_exit(-1);
-
   } else {
-    /* To implement virtual memory, delete the rest of the function
-      body, and replace it with code that brings in the page to
-      which fault_addr refers. */
-    syscall_exit(-1);
-    printf ("Page fault at %p: %s error %s page in %s context.\n",
-            fault_addr,
-            not_present ? "not present" : "rights violation",
-            write ? "writing" : "reading",
-            user ? "user" : "kernel");
-    kill (f);
-
+			vm_sup_page_load(sup_page_entry);
   }
 
 }
