@@ -153,8 +153,6 @@ vm_evict_page(enum palloc_flags pflags){
 
   /* iterate over all frames until a frame is not accessed 
      (could be more than iteration) */
-  // TODO do we "restart" clock algorithm with every evict start, or do we keep the iterator where we found a free page last time
-  // TODO in case of MMAP remember to set page_status to NOT_LOADED
   while (true){
       // printf("DEBUG: iteration started\n");
       struct frame *iter_frame = list_entry (clock_iterator, struct frame, l_elem);
@@ -165,13 +163,22 @@ vm_evict_page(enum palloc_flags pflags){
       // printf("DEBUG: sup page entry read from iter frame successfully\n");
       if (iter_sup_page == NULL){
         // TODO this should never happen? Search for the reason
-        // printf("DEBUG: Iter sup page is NULL -> skipping\n");
+        printf("DEBUG: Iter sup page is NULL -> skipping\n");
         // page was accessed -> look at next frame if accessed
         vm_evict_page_next_iterator();
         continue;
       }
+
+      /* if sup page is pinned look at next page */
+      lock_acquire(&(iter_sup_page->pin_lock));
+      if (iter_sup_page->pinned == true){
+        lock_release(&(iter_sup_page->pin_lock));
+        vm_evict_page_next_iterator();
+        continue;
+      }
+      lock_release(&(iter_sup_page->pin_lock));
+
       struct thread *page_thread = iter_sup_page->thread;
-      // TODO: check if vm_addr has to be round_up or round_down
       // check if access bit is 0
       // printf("DEBUG: pagedir is accessed start\n");
       bool accessed_bit = pagedir_is_accessed(page_thread->pagedir, iter_sup_page->vm_addr);

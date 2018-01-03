@@ -47,6 +47,11 @@ int syscall_mmap(int fd, void *vaddr, void *esp);
 void syscall_munmap (mapid_t mapping);
 void * read_mmap_argument_at_index(struct intr_frame *f, int arg_offset);
 
+void load_and_pin_string(const void *buffer);
+void unpin_string(const void *buffer);
+void load_and_pin_buffer(const void *buffer, unsigned size);
+void unpin_buffer(const void *buffer, unsigned size);
+
 // TODO TODO TODO TODO Refactor ESP passing through everything
 
 void
@@ -230,7 +235,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 /* calls syscall_exit(-1) if the passed pointer is not valid in the current 
    context */
 void
-validate_pointer(const void* pointer, void *esp){
+validate_pointer(const void *pointer, void *esp){
   struct thread *thread = thread_current();
 	// TODO: check if this line can be removed
   //uint32_t *pagedir = thread->pagedir;
@@ -250,7 +255,7 @@ validate_pointer(const void* pointer, void *esp){
 /* calls syscall_exit(-1) if the passed buffer is not valid in the current 
    context */
 void
-validate_buffer(const void* buffer, unsigned size, void *esp){
+validate_buffer(const void *buffer, unsigned size, void *esp){
   //printf("DEBUG: Validate buffer start in syscall\n");
   unsigned i = 0;
   const char* buffer_iter = buffer;
@@ -260,7 +265,6 @@ validate_buffer(const void* buffer, unsigned size, void *esp){
     validate_pointer(buffer_iter + i, esp);
     i += 1;
   }
-
   //printf("DEBUG: Validate buffer end in syscall\n");
 }
 
@@ -268,7 +272,7 @@ validate_buffer(const void* buffer, unsigned size, void *esp){
 /* calls syscall_exit(-1) if the passed "string" is not valid in the current 
    context, otherwise returns length of string */
 int
-validate_string(const char* buffer, void *esp){
+validate_string(const char *buffer, void *esp){
   //printf("DEBUG: Validate string start in syscall\n");
   int length = 0;
   const char* buffer_iter = buffer;
@@ -284,6 +288,74 @@ validate_string(const char* buffer, void *esp){
 
   //printf("DEBUG: Validate string end in syscall\n");
   return length;
+}
+
+/* TODO this should be done more efficiently! */
+void
+load_and_pin_buffer(const void *buffer, unsigned size){
+  struct thread *current_thread = thread_current();
+
+  unsigned i = 0;
+  const char* buffer_iter = buffer;
+	// TODO: check if this line can be removed
+  //struct thread *thread = thread_current();
+  while (i < (size)){
+    void *vm_addr = pg_round_down(buffer_iter);
+    vm_sup_page_load_and_pin(vm_sup_page_lookup(current_thread, vm_addr));
+    i += 1;
+  }
+}
+
+/* TODO this should be done more efficiently! */
+void
+unpin_buffer(const void *buffer, unsigned size){
+  struct thread *current_thread = thread_current();
+
+  unsigned i = 0;
+  const char* buffer_iter = buffer;
+	// TODO: check if this line can be removed
+  //struct thread *thread = thread_current();
+  while (i < (size)){
+    void *vm_addr = pg_round_down(buffer_iter);
+    vm_sup_page_unpin(vm_sup_page_lookup(current_thread, vm_addr));
+    i += 1;
+  }
+}
+
+/* TODO this should be done more efficiently! */
+void
+load_and_pin_string(const void *buffer){
+  struct thread *current_thread = thread_current();
+  void *vm_addr = pg_round_down(buffer);
+
+  const char* buffer_iter = buffer;
+  while (true){
+    if (*buffer_iter == '\0')
+      break; 
+      
+    void *vm_addr = pg_round_down(buffer_iter);
+    vm_sup_page_load_and_pin(vm_sup_page_lookup(current_thread, vm_addr));
+    buffer_iter += 1;
+  }
+
+}
+
+/* TODO this should be done more efficiently! */
+void
+unpin_string(const void *buffer){
+  struct thread *current_thread = thread_current();
+  void *vm_addr = pg_round_down(buffer);
+
+  const char* buffer_iter = buffer;
+  while (true){
+    if (*buffer_iter == '\0')
+      break; 
+      
+    void *vm_addr = pg_round_down(buffer_iter);
+    vm_sup_page_unpin(vm_sup_page_lookup(current_thread, vm_addr));
+    buffer_iter += 1;
+  }
+
 }
 
 

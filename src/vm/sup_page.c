@@ -14,6 +14,7 @@
 #include "vm/swap.h"
 #include "userprog/pagedir.h"
 
+void vm_sup_page_free_stack(struct sup_page_entry *sup_page_entry);
 void vm_sup_page_free_mmap(struct sup_page_entry *sup_page_entry);
 void vm_sup_page_free_file(struct sup_page_entry *sup_page_entry);
 bool vm_write_file_back_on_delete(struct sup_page_entry *sup_page_entry);
@@ -141,9 +142,7 @@ vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED)
         }
       case PAGE_TYPE_STACK:
         {
-          /* in the case of stack nothing has to be written back */
-          if(lookup_sup_page_entry->status == PAGE_STATUS_SWAPPED)
-                  vm_swap_free(lookup_sup_page_entry->swap_addr);
+          vm_sup_page_free_stack(lookup_sup_page_entry);
           break;
         }
     default:
@@ -156,6 +155,38 @@ vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED)
     }
 
   free(lookup_sup_page_entry);
+}
+
+
+void
+vm_sup_page_free_stack(struct sup_page_entry *sup_page_entry)
+{
+  switch (sup_page_entry->status)
+    {
+      case PAGE_STATUS_LOADED:
+        {
+          void *phys_addr = sup_page_entry->phys_addr;
+          void *upage = sup_page_entry->vm_addr;
+          vm_frame_free(phys_addr, upage);
+          break;
+        }
+      case PAGE_STATUS_NOT_LOADED:
+        {
+          printf("STACK WITH ILLEGAL STATUS NOT_LOADED!\n");
+          break;
+        }
+      case PAGE_STATUS_SWAPPED:
+        {
+          vm_swap_free(sup_page_entry->swap_addr);
+          break;
+        }
+      default:
+        {
+          printf("Illegal PAGE_STATUS found!\n");
+          syscall_exit(-1);
+          break;
+        }
+    }
 }
 
 
