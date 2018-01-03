@@ -6,6 +6,7 @@
 #include "devices/block.h"
 #include "filesys/file.h"
 #include "threads/thread.h"
+#include "threads/synch.h"
 #include <stdio.h>
 
 
@@ -58,8 +59,14 @@ struct sup_page_entry
     /* id to identify mmap */
     int mmap_id;
 
-    /* bool to indicat if file/page is writable */
+    /* bool to indicate if file/page is writable */
     bool writable;
+
+    /* bool to indicate if the page is pinned */
+    bool pinned;
+
+    /* synchronization of pinend value */
+    struct lock pin_lock;
     
     /* palloc flags which are used when the frame is created */
     enum palloc_flags pflags;

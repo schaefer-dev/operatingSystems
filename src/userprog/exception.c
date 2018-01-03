@@ -194,7 +194,7 @@ page_fault (struct intr_frame *f)
     }
 
   } else {
-			vm_sup_page_load(sup_page_entry);
+      vm_sup_page_load(sup_page_entry);
   }
 
 }

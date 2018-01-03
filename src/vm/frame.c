@@ -60,8 +60,6 @@ vm_frame_init () {
 }
 
 
-//TODO: add page to pagedir of the corresponding thread
-//TODO: check if this function should simply return the reference to the frame b.c. there are different ways to load (files, mmap, swap...)
 void*
 vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pflags, bool writable)
 {
@@ -74,8 +72,6 @@ vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pfla
 
   if (page == NULL) {
     // Frame allocation Failed
-    // TODO evice page here to make room
-    // TODO lock is hold at this place so evict_page shouldn't acquire the lock check if this is a good idea
     page = vm_evict_page(PAL_USER | pflags);
   }
 
