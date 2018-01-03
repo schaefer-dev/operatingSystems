@@ -30,7 +30,8 @@ vm_swap_init(void)
         PANIC ("No SWAP disk declared!");
     }
 
-    swap_size = block_size(swap);
+    /* swap size = how many pages can be contained in the swap-block */
+    swap_size = (block_size(swap) / SECTORS_FOR_PAGE);
     swap_free_bitmap = bitmap_create(swap_size);
     bitmap_set_all (swap_free_bitmap, true);
     lock_init(&swap_lock);
@@ -44,15 +45,9 @@ vm_swap_get_free(void)
 {
   ASSERT(lock_held_by_current_thread(&swap_lock));  
 
-  if (bitmap_all(swap_free_bitmap, 0, swap_size)){
-    PANIC("SWAP is completely full!");
-    //TODO: check if return 0 is okay
-    return 0;
-  }
-
   /* get the first sector with SECTORS_FOR_PAGE successive free secors and sets these sectors to 
       occupied already */
-  block_sector_t free_sector = bitmap_scan_and_flip (swap_free_bitmap, 0, SECTORS_FOR_PAGE, true);
+  block_sector_t free_sector = bitmap_scan_and_flip (swap_free_bitmap, 0, 1, true);
 
   if (free_sector == BITMAP_ERROR){
     PANIC("No SWAP Block of sufficient size found!");
@@ -70,29 +65,28 @@ block_sector_t
 vm_swap_page(void *phys_addr)
 {
   // TODO verify page reference? is_uservaddr?
-  // printf("DEBUG: vm_swap_page tries to acquire lock\n");
   lock_acquire(&swap_lock);
 
-  // printf("DEBUG: vm_swap_get_free started\n");
   block_sector_t free_sector = vm_swap_get_free();
-  // printf("DEBUG: vm_swap_get_free completed\n");
 
   /* write SECTORS_FOR_PAGE amount of blocks into swap starting at block free_sector */
   block_sector_t sector_iterator = 0;
   for (sector_iterator = 0; sector_iterator < SECTORS_FOR_PAGE; sector_iterator++){
       /* block_write Internally synchronizes accesses to block devices, so
           external per-block device locking is unneeded. */
-      block_write(swap, free_sector + sector_iterator,
+      block_write(swap, free_sector * SECTORS_FOR_PAGE + sector_iterator,
                   phys_addr + (BLOCK_SECTOR_SIZE * sector_iterator));
   }
 
   lock_release(&swap_lock);
-  // printf("DEBUG: vm_swap_page completed \n");
   return free_sector;
 }
 
 
-/* writes the sectors starting at swap_sector into the passed page */
+/* writes the sectors starting at swap_sector into the passed page. Because a page
+   contains out of more than one sector, we adress sectors not by their sector Number
+   but rather with the index they are contained in the bitmap. This makes adressing
+   much easier to understand. */
 void
 vm_swap_back(block_sector_t swap_sector, void *phys_addr)
 {
@@ -112,7 +106,7 @@ vm_swap_back(block_sector_t swap_sector, void *phys_addr)
   for (sector_iterator = 0; sector_iterator < SECTORS_FOR_PAGE; sector_iterator++){
       /* block_write Internally synchronizes accesses to block devices, so
           external per-block device locking is unneeded. */
-      block_read(swap, swap_sector + sector_iterator,
+      block_read(swap, swap_sector * SECTORS_FOR_PAGE + sector_iterator,
                   phys_addr + (BLOCK_SECTOR_SIZE * sector_iterator));
   }
 
