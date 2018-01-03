@@ -64,6 +64,7 @@ vm_frame_init () {
 void*
 vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pflags, bool writable)
 {
+  ASSERT(sup_page_entry != NULL);
   //printf("DEBUG: frame allocate begin\n");
   ASSERT(!lock_held_by_current_thread(&frame_lock));
   lock_acquire (&frame_lock);
@@ -163,7 +164,7 @@ vm_evict_page(enum palloc_flags pflags){
       // printf("DEBUG: sup page entry read from iter frame successfully\n");
       if (iter_sup_page == NULL){
         // TODO this should never happen? Search for the reason
-        printf("DEBUG: Iter sup page is NULL -> skipping\n");
+        //printf("DEBUG: Iter sup page is NULL -> skipping\n");
         // page was accessed -> look at next frame if accessed
         vm_evict_page_next_iterator();
         continue;
@@ -250,6 +251,8 @@ vm_evict_page(enum palloc_flags pflags){
 /* writes file content to swap if necessary(page is dirty) and sets the status
   based on wheter it was dirty or not */
 void vm_evict_file(struct sup_page_entry *sup_page_entry, struct frame *frame){
+  ASSERT(sup_page_entry != NULL);
+  
   struct thread *thread = sup_page_entry->thread;
   bool dirty = pagedir_is_dirty(thread->pagedir, sup_page_entry->vm_addr);
   if (dirty){
@@ -267,6 +270,7 @@ void vm_evict_file(struct sup_page_entry *sup_page_entry, struct frame *frame){
 
 /* writes page content to swap and sets the status */
 void vm_evict_stack(struct sup_page_entry *sup_page_entry, struct frame *frame){
+  ASSERT(sup_page_entry != NULL);
   block_sector_t swap_block = vm_swap_page(frame->phys_addr);
   sup_page_entry->status = PAGE_STATUS_SWAPPED;
   sup_page_entry->swap_addr = swap_block;
@@ -275,6 +279,7 @@ void vm_evict_stack(struct sup_page_entry *sup_page_entry, struct frame *frame){
 /* writes mmap file content back to file if necessary(page is dirty) and sets 
   the status to not loaded b.c. we always load from file */
 void vm_evict_mmap(struct sup_page_entry *sup_page_entry){
+  ASSERT(sup_page_entry != NULL);
   vm_write_mmap_back(sup_page_entry);
   sup_page_entry->status = PAGE_STATUS_NOT_LOADED;
 }
