@@ -4,6 +4,7 @@
 #include "threads/palloc.h"
 #include <stdbool.h>
 #include <list.h>
+#include "threads/synch.h"
 
 /* lock to guarantee mutal exclusiveness on frame operations */
 struct lock frame_lock;
