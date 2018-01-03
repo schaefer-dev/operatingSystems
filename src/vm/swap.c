@@ -43,6 +43,7 @@ block_sector_t
 vm_swap_get_free(void)
 {
   ASSERT(lock_held_by_current_thread(&swap_lock));  
+
   if (bitmap_all(swap_free_bitmap, 0, swap_size)){
     PANIC("SWAP is completely full!");
     //TODO: check if return 0 is okay
@@ -69,12 +70,12 @@ block_sector_t
 vm_swap_page(void *phys_addr)
 {
   // TODO verify page reference? is_uservaddr?
-  printf("DEBUG: vm_swap_page tries to acquire lock\n");
+  // printf("DEBUG: vm_swap_page tries to acquire lock\n");
   lock_acquire(&swap_lock);
 
-  printf("DEBUG: vm_swap_get_free started\n");
+  // printf("DEBUG: vm_swap_get_free started\n");
   block_sector_t free_sector = vm_swap_get_free();
-  printf("DEBUG: vm_swap_get_free completed\n");
+  // printf("DEBUG: vm_swap_get_free completed\n");
 
   /* write SECTORS_FOR_PAGE amount of blocks into swap starting at block free_sector */
   block_sector_t sector_iterator = 0;
@@ -86,7 +87,7 @@ vm_swap_page(void *phys_addr)
   }
 
   lock_release(&swap_lock);
-  printf("DEBUG: vm_swap_page completed \n");
+  // printf("DEBUG: vm_swap_page completed \n");
   return free_sector;
 }
 
