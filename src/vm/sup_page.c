@@ -64,6 +64,24 @@ vm_sup_page_hashmap_close(struct thread *thread)
   hash_destroy(&(thread->sup_page_hashmap), vm_sup_page_free);
 }
 
+
+void
+vm_sup_page_load_and_pin (struct sup_page_entry *sup_page_entry){
+  lock_acquire(&(sup_page_entry->pin_lock));
+  sup_page_entry->pinned = true;
+  lock_release(&(sup_page_entry->pin_lock));
+  vm_sup_page_load(sup_page_entry);
+}
+
+
+void
+vm_sup_page_unpin (struct sup_page_entry *sup_page_entry){
+  lock_acquire(&(sup_page_entry->pin_lock));
+  sup_page_entry->pinned = false;
+  lock_release(&(sup_page_entry->pin_lock));
+}
+
+
 void
 vm_sup_page_load (struct sup_page_entry *sup_page_entry){
   struct thread *current_thread = thread_current();

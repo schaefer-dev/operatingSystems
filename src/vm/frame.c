@@ -9,12 +9,12 @@
 #include "vm/swap.h"
 #include "vm/sup_page.h"
 
-
-
 /* list of all frames */
 static struct list frame_list;
+struct list_elem *clock_iterator;
 
 void* vm_evict_page(enum palloc_flags pflags);
+void vm_evict_page_next_iterator(void);
 
 void vm_evict_file(struct sup_page_entry *sup_page_entry, struct frame *frame);
 void vm_evict_stack(struct sup_page_entry *sup_page_entry, struct frame *frame);
@@ -57,6 +57,7 @@ void
 vm_frame_init () {
   lock_init (&frame_lock);
   list_init (&frame_list);
+  clock_iterator = NULL;
 }
 
 
@@ -123,6 +124,21 @@ vm_frame_free (void *phys_addr, void *upage)
 }
 
 
+void
+vm_evict_page_next_iterator(void){
+  // printf("DEBUG: set iterator to next element\n");
+  if (clock_iterator == list_tail (&frame_list)){
+    /* all pages were accessed -> start again with first element to find 
+      a page which was not accessed recently */
+    // printf("DEBUG: continue with frame list begin again\n");
+    clock_iterator = list_begin(&frame_list);
+  } else {
+    clock_iterator = list_next(clock_iterator);
+    // printf("DEBUG: continue with next list entry\n");
+  }
+}
+
+
 /* search for a page to evict in physical memory and returns the adress 
    of the eviced page which can now be written on.
    Evict_page can only be called when the frame lock is currently held */
@@ -132,7 +148,8 @@ vm_evict_page(enum palloc_flags pflags){
   ASSERT (lock_held_by_current_thread(&frame_lock));
   ASSERT (!list_empty(&frame_list));
 
-  struct list_elem *iterator = list_begin (&frame_list);
+  if (clock_iterator == NULL)
+    clock_iterator = list_begin (&frame_list);
 
   /* iterate over all frames until a frame is not accessed 
      (could be more than iteration) */
@@ -140,7 +157,7 @@ vm_evict_page(enum palloc_flags pflags){
   // TODO in case of MMAP remember to set page_status to NOT_LOADED
   while (true){
       // printf("DEBUG: iteration started\n");
-      struct frame *iter_frame = list_entry (iterator, struct frame, l_elem);
+      struct frame *iter_frame = list_entry (clock_iterator, struct frame, l_elem);
       // printf("DEBUG: list entry successfully created\n");
       // if (iter_frame == NULL)
         // printf("DEBUG: Iter Frame is NULL\n");
@@ -150,16 +167,7 @@ vm_evict_page(enum palloc_flags pflags){
         // TODO this should never happen? Search for the reason
         // printf("DEBUG: Iter sup page is NULL -> skipping\n");
         // page was accessed -> look at next frame if accessed
-        // printf("DEBUG: set iterator to next element\n");
-        if (iterator == list_tail (&frame_list)){
-          /* all pages were accessed -> start again with first element to find 
-            a page which was not accessed recently */
-          // printf("DEBUG: continue with frame list begin again\n");
-          iterator = list_begin(&frame_list);
-        } else {
-          iterator = list_next(iterator);
-          // printf("DEBUG: continue with next list entry\n");
-        }
+        vm_evict_page_next_iterator();
         continue;
       }
       struct thread *page_thread = iter_sup_page->thread;
@@ -225,16 +233,7 @@ vm_evict_page(enum palloc_flags pflags){
 
 
       // page was accessed -> look at next frame if accessed
-      // printf("DEBUG: set iterator to next element\n");
-      if (iterator == list_tail (&frame_list)){
-        /* all pages were accessed -> start again with first element to find 
-           a page which was not accessed recently */
-        // printf("DEBUG: continue with frame list begin again\n");
-        iterator = list_begin(&frame_list);
-      } else {
-        iterator = list_next(iterator);
-        // printf("DEBUG: continue with next list entry\n");
-      }
+      vm_evict_page_next_iterator();
   }
   // should never be reached
   // printf("DEBUG: frame evict end\n");

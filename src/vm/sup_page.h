@@ -93,6 +93,7 @@ bool vm_grow_stack(void *fault_frame_addr);
 bool vm_write_mmap_back(struct sup_page_entry *sup_page_entry);
 bool vm_delete_mmap_entry(struct sup_page_entry *sup_page_entry);
 void vm_sup_page_load (struct sup_page_entry *sup_page_entry);
-
+void vm_sup_page_load_and_pin (struct sup_page_entry *sup_page_entry);
+void vm_sup_page_unpin (struct sup_page_entry *sup_page_entry);
 
 #endif /* vm/sup_page.h */
