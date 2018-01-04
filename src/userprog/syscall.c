@@ -296,6 +296,7 @@ void
 load_and_pin_buffer(const void *buffer, unsigned size, void *esp){
   //printf("DEBUG: loading and pinning buffer started\n");
   struct thread *current_thread = thread_current();
+  void *last_vm_addr = NULL;
 
   unsigned i = 0;
   const char* buffer_iter = buffer;
@@ -303,6 +304,11 @@ load_and_pin_buffer(const void *buffer, unsigned size, void *esp){
   //struct thread *thread = thread_current();
   while (i < (size)){
     void *vm_addr = pg_round_down(buffer_iter);
+    if (vm_addr == last_vm_addr){
+      i += 1;
+      continue;
+    }
+    last_vm_addr = vm_addr;
     if ((buffer_iter + 32 >= esp) && (buffer_iter < PHYS_BASE) && (PHYS_BASE - STACK_SIZE <= vm_addr)){
       vm_grow_stack(vm_addr);
     }
@@ -317,6 +323,7 @@ void
 unpin_buffer(const void *buffer, unsigned size){
   //printf("DEBUG: unpinning buffer started\n");
   struct thread *current_thread = thread_current();
+  void *last_vm_addr = NULL;
 
   unsigned i = 0;
   const char* buffer_iter = buffer;
@@ -324,6 +331,11 @@ unpin_buffer(const void *buffer, unsigned size){
   //struct thread *thread = thread_current();
   while (i < (size)){
     void *vm_addr = pg_round_down(buffer_iter);
+    if (vm_addr == last_vm_addr){
+      i += 1;
+      continue;
+    }
+    last_vm_addr = vm_addr;
     vm_sup_page_unpin(vm_sup_page_lookup(current_thread, vm_addr));
     i += 1;
   }
@@ -335,7 +347,7 @@ void
 load_and_pin_string(const void *buffer, void *esp){
   //printf("DEBUG: loading and pinning string started\n");
   struct thread *current_thread = thread_current();
-  void *vm_addr = pg_round_down(buffer);
+  void *last_vm_addr = NULL;
 
   const char* buffer_iter = buffer;
   while (true){
@@ -343,6 +355,11 @@ load_and_pin_string(const void *buffer, void *esp){
       break; 
       
     void *vm_addr = pg_round_down(buffer_iter);
+    if (vm_addr == last_vm_addr){
+      buffer_iter += 1;
+      continue;
+    }
+    last_vm_addr = vm_addr;
     if ((buffer_iter + 32 >= esp) && (buffer_iter < PHYS_BASE) && (PHYS_BASE - STACK_SIZE <= vm_addr)){
       vm_grow_stack(vm_addr);
     }
@@ -358,7 +375,7 @@ void
 unpin_string(const void *buffer){
   //printf("DEBUG: unpinning string started\n");
   struct thread *current_thread = thread_current();
-  void *vm_addr = pg_round_down(buffer);
+  void *last_vm_addr;
 
   const char* buffer_iter = buffer;
   while (true){
@@ -366,6 +383,11 @@ unpin_string(const void *buffer){
       break; 
       
     void *vm_addr = pg_round_down(buffer_iter);
+    if (vm_addr == last_vm_addr){
+      buffer_iter += 1;
+      continue;
+    }
+    last_vm_addr = vm_addr;
     vm_sup_page_unpin(vm_sup_page_lookup(current_thread, vm_addr));
     buffer_iter += 1;
   }
