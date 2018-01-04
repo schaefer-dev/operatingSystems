@@ -28,7 +28,7 @@ void
 msg (const char *format, ...) 
 {
   va_list args;
-  printf("%p adress of test_name\n", test_name);
+  //printf("%p adress of test_name\n", test_name);
 
   if (quiet)
     return;

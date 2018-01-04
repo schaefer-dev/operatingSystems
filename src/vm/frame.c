@@ -117,6 +117,14 @@ vm_frame_free (void *phys_addr, void *upage)
     return;
   }
 
+  /* if removed frame is current itertion move iterator one step */
+  if (clock_iterator != NULL){
+    struct frame *iter_frame = list_entry (clock_iterator, struct frame, l_elem);
+    if (found_frame->phys_addr == iter_frame->phys_addr){
+      vm_evict_page_next_iterator();
+    }
+  }
+
   list_remove (&found_frame->l_elem);
   palloc_free_page(phys_addr);
   uninstall_page(upage);
@@ -131,6 +139,9 @@ vm_frame_free (void *phys_addr, void *upage)
 void
 vm_evict_page_next_iterator(void){
   // printf("DEBUG: set iterator to next element\n");
+  if (list_empty(&frame_list)){
+    clock_iterator = NULL;
+  }
   if (clock_iterator == list_tail (&frame_list)){
     /* all pages were accessed -> start again with first element to find 
       a page which was not accessed recently */

@@ -564,6 +564,8 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
   //printf("DEBUG: Load segment called!\n");
+  struct thread *current_thread = thread_current();
+  ASSERT(vm_sup_page_lookup(current_thread, upage) == NULL);
 
   while (read_bytes > 0 || zero_bytes > 0) 
     {
