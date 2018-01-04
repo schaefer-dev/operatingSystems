@@ -43,6 +43,7 @@ void syscall_close(int fd);
 struct list_elem* get_list_elem(int fd);
 bool validate_mmap(int fd, void *vaddr, void *esp);
 bool validate_mmap_address(void *vaddr, void *esp);
+bool check_mmap_overlap(void *vaddr, unsigned size, void *esp);
 int syscall_mmap(int fd, void *vaddr, void *esp);
 void syscall_munmap (mapid_t mapping);
 void * read_mmap_argument_at_index(struct intr_frame *f, int arg_offset);
@@ -765,6 +766,24 @@ bool validate_mmap_address(void *vaddr, void *esp){
   return true;
 }
 
+/* checks if mmap overlaps */
+bool check_mmap_overlap(void *vaddr, unsigned size, void *esp){
+  while (size > 0) {
+    /* Calculate how to fill this page. */
+    off_t page_read_bytes = size;
+    if (size > PGSIZE){
+      page_read_bytes = PGSIZE;
+    }
+
+    if (!validate_mmap_address(vaddr, esp)){
+      return false;
+    }
+    size -= page_read_bytes;
+    vaddr += PGSIZE;
+  }
+  return true;
+}
+
 /* syscall to mmap files */
 mapid_t syscall_mmap(int fd, void *vaddr, void *esp){
   //printf("syscall mmap reached\n");
@@ -792,6 +811,10 @@ mapid_t syscall_mmap(int fd, void *vaddr, void *esp){
   mapid_t current_mmapid = thread->current_mmapid;
   thread->current_mmapid += 1;
   lock_release(&lock_filesystem);
+
+  /* check if mmap overlaps */
+  if (!check_mmap_overlap(vaddr, size, esp))
+    return -1;
   //printf("read mmap file okay\n");
   /* offset in file is initially 0 */
   off_t ofs = 0;
@@ -804,10 +827,6 @@ mapid_t syscall_mmap(int fd, void *vaddr, void *esp){
     off_t page_read_bytes = size;
     if (size > PGSIZE){
       page_read_bytes = PGSIZE;
-    }
-
-    if (!validate_mmap_address(vaddr, esp)){
-      return -1;
     }
 
     /* Add page to supplemental page table */
