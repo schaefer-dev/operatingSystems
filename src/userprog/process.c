@@ -542,6 +542,7 @@ load_segment_not_lazy (struct file *file, off_t ofs, uint8_t *upage,
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
     }
+
   return true;
 }
 
@@ -567,8 +568,6 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   struct thread *current_thread = thread_current();
   ASSERT(vm_sup_page_lookup(current_thread, upage) == NULL);
 
-  int debug_while_loops = 0;
-
   while (read_bytes > 0 || zero_bytes > 0) 
     {
       /* Calculate how to fill this page.
@@ -583,6 +582,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
         //printf("DEBUG: Load segment failed!\n");
         return false;
       }
+      struct sup_page_entry *sup_page_entry = vm_sup_page_lookup(current_thread, upage);
       //printf("DEBUG: sup_page allocated at vaddr: %p\n", upage);
 
       /* Advance. */
@@ -591,10 +591,8 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
-      debug_while_loops += 1;
     }
   //printf("DEBUG: Load segment success!\n";
-  //printf("load_segment completed with %i loops\n", debug_while_loops);
   return true;
 }
 

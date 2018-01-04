@@ -464,6 +464,7 @@ vm_load_file(void *fault_frame_addr){
   struct sup_page_entry *sup_page = vm_sup_page_lookup(thread, fault_frame_addr);
 
   struct file *file = sup_page->file;
+  ASSERT(file != NULL);
 
   off_t file_offset = sup_page->file_offset;
 

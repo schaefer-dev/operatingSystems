@@ -88,6 +88,7 @@ void vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED);
 struct sup_page_entry* vm_sup_page_lookup (struct thread *thread, void* vm_addr);
 void vm_sup_page_hashmap_close(struct thread *thread);
 bool vm_load_file(void *fault_frame_addr);
+bool vm_load_mmap(void *fault_frame_addr);
 bool vm_load_swap(void *fault_frame_addr);
 bool vm_grow_stack(void *fault_frame_addr);
 bool vm_write_mmap_back(struct sup_page_entry *sup_page_entry);
