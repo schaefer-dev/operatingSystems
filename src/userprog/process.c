@@ -622,47 +622,47 @@ setup_stack (void **esp, char *argument_buffer, int argcount)
   if (success) 
     {
       *esp = PHYS_BASE;
-        char* argument_adress_array[argcount];
+      char* argument_adress_array[argcount];
 
-        int i = 0;
-        char *esp_iter = (char*) *esp;
+      int i = 0;
+      char *esp_iter = (char*) *esp;
 
-        /* writing argument values to stack */
-        for (i = 0; i < argcount; i++){
-          int argument_size = strlen(argument_buffer);
-          esp_iter -= argument_size + 1;
-          strlcpy(esp_iter, argument_buffer, argument_size + 1);
-          argument_adress_array[i] = esp_iter;
-          argument_buffer += argument_size + 1;
-        }
+      /* writing argument values to stack */
+      for (i = 0; i < argcount; i++){
+        int argument_size = strlen(argument_buffer);
+        esp_iter -= argument_size + 1;
+        strlcpy(esp_iter, argument_buffer, argument_size + 1);
+        argument_adress_array[i] = esp_iter;
+        argument_buffer += argument_size + 1;
+      }
 
-        esp_iter -= ((uintptr_t) esp_iter) % 4;
+      esp_iter -= ((uintptr_t) esp_iter) % 4;
 
-        char **int_esp_iter = (char**) esp_iter;
+      char **int_esp_iter = (char**) esp_iter;
 
-        /* terminating char pointer */
+      /* terminating char pointer */
+      int_esp_iter -= 1;
+      *int_esp_iter = 0;
+
+      /* writing argument references to stack */
+      for (i = 0; i < argcount; i++){
         int_esp_iter -= 1;
-        *int_esp_iter = 0;
+        *int_esp_iter = argument_adress_array[i];
+      }
 
-        /* writing argument references to stack */
-        for (i = 0; i < argcount; i++){
-          int_esp_iter -= 1;
-          *int_esp_iter = argument_adress_array[i];
-        }
+      /* write argv reference to stack */
+      int_esp_iter -= 1;
+      *int_esp_iter = (char*) (int_esp_iter + 1);
 
-        /* write argv reference to stack */
-        int_esp_iter -= 1;
-        *int_esp_iter = (char*) (int_esp_iter + 1);
+      /* write argc to stack */
+      int_esp_iter -= 1;
+      *int_esp_iter = (char*) argcount;
 
-        /* write argc to stack */
-        int_esp_iter -= 1;
-        *int_esp_iter = (char*) argcount;
+      /* write return adress to stack */
+      int_esp_iter -= 1;
+      *int_esp_iter = 0;
 
-        /* write return adress to stack */
-        int_esp_iter -= 1;
-        *int_esp_iter = 0;
-
-        *esp = int_esp_iter;
+      *esp = int_esp_iter;
     }
   return success;
 }

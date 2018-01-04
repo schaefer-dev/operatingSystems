@@ -1,6 +1,7 @@
 #include "userprog/exception.h"
 #include <inttypes.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "userprog/gdt.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
@@ -184,10 +185,11 @@ page_fault (struct intr_frame *f)
   //printf("DEBUG: syscall esp = %p\n", stack_pointer);
 
 
+
+
   if (sup_page_entry == NULL){
     //printf("DEBUG: sup_page null!\n");
     if ((fault_addr + 32 >= stack_pointer) && (fault_addr < PHYS_BASE) && (PHYS_BASE - STACK_SIZE <= fault_frame_addr)){
-      //printf("DEBUG: stack growth called!\n");
         vm_grow_stack(fault_frame_addr);
     } else {
       syscall_exit(-1);
@@ -196,5 +198,4 @@ page_fault (struct intr_frame *f)
   } else {
       vm_sup_page_load(sup_page_entry);
   }
-
 }
