@@ -610,12 +610,18 @@ setup_stack (void **esp, char *argument_buffer, int argcount)
   uint8_t *kpage;
   bool success = false;
 
-  kpage = palloc_get_page (PAL_USER | PAL_ZERO);
-  if (kpage != NULL) 
+  struct thread *current_thread = thread_current();
+  void *vaddr = (uint8_t *) PHYS_BASE - PGSIZE;
+
+  success = vm_sup_page_allocate(vaddr, true);
+  struct sup_page_entry *sup_page_entry = vm_sup_page_lookup(current_thread, vaddr);
+  kpage = vm_frame_allocate (sup_page_entry, (PAL_USER | PAL_ZERO), true);
+  sup_page_entry->phys_addr = kpage;
+  sup_page_entry->status = PAGE_STATUS_LOADED;
+  sup_page_entry->type = PAGE_TYPE_STACK;
+  if (success) 
     {
       *esp = PHYS_BASE;
-      success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success){
         char* argument_adress_array[argcount];
 
         int i = 0;
@@ -625,57 +631,38 @@ setup_stack (void **esp, char *argument_buffer, int argcount)
         for (i = 0; i < argcount; i++){
           int argument_size = strlen(argument_buffer);
           esp_iter -= argument_size + 1;
-          if (faulty_esp((uintptr_t) esp_iter, (uintptr_t) (PHYS_BASE - PGSIZE)))
-            return -1;
           strlcpy(esp_iter, argument_buffer, argument_size + 1);
           argument_adress_array[i] = esp_iter;
           argument_buffer += argument_size + 1;
-        } 
+        }
 
         esp_iter -= ((uintptr_t) esp_iter) % 4;
-        if (faulty_esp((uintptr_t) esp_iter, (uintptr_t) (PHYS_BASE - PGSIZE)))
-          return -1;
 
         char **int_esp_iter = (char**) esp_iter;
 
         /* terminating char pointer */
         int_esp_iter -= 1;
-        if (faulty_esp((uintptr_t) esp_iter, (uintptr_t) (PHYS_BASE - PGSIZE)))
-          return -1;
         *int_esp_iter = 0;
 
         /* writing argument references to stack */
         for (i = 0; i < argcount; i++){
           int_esp_iter -= 1;
-          if (faulty_esp((uintptr_t) esp_iter, (uintptr_t) (PHYS_BASE - PGSIZE)))
-            return -1;
           *int_esp_iter = argument_adress_array[i];
         }
 
         /* write argv reference to stack */
         int_esp_iter -= 1;
-        if (faulty_esp((uintptr_t) esp_iter, (uintptr_t) (PHYS_BASE - PGSIZE)))
-          return -1;
-
         *int_esp_iter = (char*) (int_esp_iter + 1);
 
         /* write argc to stack */
         int_esp_iter -= 1;
-        if (faulty_esp((uintptr_t) esp_iter, (uintptr_t) (PHYS_BASE - PGSIZE)))
-          return -1;
         *int_esp_iter = (char*) argcount;
 
         /* write return adress to stack */
         int_esp_iter -= 1;
-        if (faulty_esp((uintptr_t) esp_iter, (uintptr_t) (PHYS_BASE - PGSIZE)))
-          return -1;
         *int_esp_iter = 0;
 
         *esp = int_esp_iter;
-
-      }
-      else
-        palloc_free_page (kpage);
     }
   return success;
 }

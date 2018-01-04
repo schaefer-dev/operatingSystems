@@ -81,6 +81,9 @@ vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pfla
   sup_page_entry->phys_addr = page;
   frame->phys_addr = page;
   frame->sup_page_entry = sup_page_entry;
+  // TODO setting these values also appears somewhere else, decide where this should happen!
+  frame->sup_page_entry->status = PAGE_STATUS_LOADED;
+  frame->sup_page_entry->phys_addr = page;
   frame->pinned = false;
 
   // install page in pagedir of thread
