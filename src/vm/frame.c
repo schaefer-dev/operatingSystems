@@ -232,6 +232,9 @@ vm_evict_page(enum palloc_flags pflags){
             }
 
           }
+          /* frame is current itertion move iterator one step */
+          vm_evict_page_next_iterator();
+
           // printf("DEBUG: removing from list started\n");
           // remove frame from list
           list_remove(&iter_frame->l_elem);
