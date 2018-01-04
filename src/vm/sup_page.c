@@ -68,6 +68,7 @@ vm_sup_page_hashmap_close(struct thread *thread)
 
 void
 vm_sup_page_load_and_pin (struct sup_page_entry *sup_page_entry){
+  ASSERT(sup_page_entry != NULL);
   lock_acquire(&(sup_page_entry->pin_lock));
   sup_page_entry->pinned = true;
   lock_release(&(sup_page_entry->pin_lock));
@@ -77,6 +78,7 @@ vm_sup_page_load_and_pin (struct sup_page_entry *sup_page_entry){
 
 void
 vm_sup_page_unpin (struct sup_page_entry *sup_page_entry){
+  ASSERT(sup_page_entry != NULL);
   lock_acquire(&(sup_page_entry->pin_lock));
   sup_page_entry->pinned = false;
   lock_release(&(sup_page_entry->pin_lock));

@@ -48,9 +48,9 @@ int syscall_mmap(int fd, void *vaddr, void *esp);
 void syscall_munmap (mapid_t mapping);
 void * read_mmap_argument_at_index(struct intr_frame *f, int arg_offset);
 
-void load_and_pin_string(const void *buffer);
+void load_and_pin_string(const void *buffer, void *esp);
 void unpin_string(const void *buffer);
-void load_and_pin_buffer(const void *buffer, unsigned size);
+void load_and_pin_buffer(const void *buffer, unsigned size, void *esp);
 void unpin_buffer(const void *buffer, unsigned size);
 
 // TODO TODO TODO TODO Refactor ESP passing through everything
@@ -293,7 +293,8 @@ validate_string(const char *buffer, void *esp){
 
 /* TODO this should be done more efficiently! */
 void
-load_and_pin_buffer(const void *buffer, unsigned size){
+load_and_pin_buffer(const void *buffer, unsigned size, void *esp){
+  //printf("DEBUG: loading and pinning buffer started\n");
   struct thread *current_thread = thread_current();
 
   unsigned i = 0;
@@ -302,14 +303,19 @@ load_and_pin_buffer(const void *buffer, unsigned size){
   //struct thread *thread = thread_current();
   while (i < (size)){
     void *vm_addr = pg_round_down(buffer_iter);
+    if ((buffer_iter + 32 >= esp) && (buffer_iter < PHYS_BASE) && (PHYS_BASE - STACK_SIZE <= vm_addr)){
+      vm_grow_stack(vm_addr);
+    }
     vm_sup_page_load_and_pin(vm_sup_page_lookup(current_thread, vm_addr));
     i += 1;
   }
+  //printf("DEBUG: loading and pinning buffer ended\n");
 }
 
 /* TODO this should be done more efficiently! */
 void
 unpin_buffer(const void *buffer, unsigned size){
+  //printf("DEBUG: unpinning buffer started\n");
   struct thread *current_thread = thread_current();
 
   unsigned i = 0;
@@ -321,11 +327,13 @@ unpin_buffer(const void *buffer, unsigned size){
     vm_sup_page_unpin(vm_sup_page_lookup(current_thread, vm_addr));
     i += 1;
   }
+  //printf("DEBUG: unpinning buffer finished\n");
 }
 
 /* TODO this should be done more efficiently! */
 void
-load_and_pin_string(const void *buffer){
+load_and_pin_string(const void *buffer, void *esp){
+  //printf("DEBUG: loading and pinning string started\n");
   struct thread *current_thread = thread_current();
   void *vm_addr = pg_round_down(buffer);
 
@@ -335,15 +343,20 @@ load_and_pin_string(const void *buffer){
       break; 
       
     void *vm_addr = pg_round_down(buffer_iter);
+    if ((buffer_iter + 32 >= esp) && (buffer_iter < PHYS_BASE) && (PHYS_BASE - STACK_SIZE <= vm_addr)){
+      vm_grow_stack(vm_addr);
+    }
     vm_sup_page_load_and_pin(vm_sup_page_lookup(current_thread, vm_addr));
     buffer_iter += 1;
   }
+  //printf("DEBUG: loading and pinning string finished\n");
 
 }
 
 /* TODO this should be done more efficiently! */
 void
 unpin_string(const void *buffer){
+  //printf("DEBUG: unpinning string started\n");
   struct thread *current_thread = thread_current();
   void *vm_addr = pg_round_down(buffer);
 
@@ -356,7 +369,7 @@ unpin_string(const void *buffer){
     vm_sup_page_unpin(vm_sup_page_lookup(current_thread, vm_addr));
     buffer_iter += 1;
   }
-
+  //printf("DEBUG: unpinning string finished\n");
 }
 
 
@@ -430,7 +443,7 @@ syscall_write(int fd, const void *buffer, unsigned size, void *esp){
   /* check if the entire buffer is valid */
   validate_buffer(buffer,size, esp);
 
-  load_and_pin_buffer(buffer, size);
+  load_and_pin_buffer(buffer, size, esp);
 
   if (fd == STDOUT_FILENO){
     putbuf(buffer,size);
@@ -467,7 +480,7 @@ syscall_read(int fd, void *buffer, unsigned size, void *esp){
   /* check if the entire buffer is valid */
   validate_buffer(buffer, size, esp);
 
-  load_and_pin_buffer(buffer, size);
+  load_and_pin_buffer(buffer, size, esp);
 
   if (fd == STDOUT_FILENO){
     returnvalue = -1;
@@ -530,7 +543,7 @@ syscall_exec(const char *cmd_line, void *esp){
     return -1;
   }
 
-  load_and_pin_string(cmd_line);
+  load_and_pin_string(cmd_line, esp);
   pid_t pid = process_execute(cmd_line);
   
   struct child_process *current_child = get_child(pid);
@@ -565,7 +578,7 @@ syscall_create(const char *file_name, unsigned initial_size, void *esp){
   int length = validate_string(file_name, esp);
   if (length > max_file_name)
     return false;
-  load_and_pin_string(file_name);
+  load_and_pin_string(file_name, esp);
   lock_acquire(&lock_filesystem);
   bool success = filesys_create(file_name, initial_size);
   lock_release(&lock_filesystem);
@@ -580,7 +593,7 @@ syscall_remove(const char *file_name, void *esp){
   int length = validate_string(file_name, esp);
   if (length > max_file_name)
     return false;
-  load_and_pin_string(file_name);
+  load_and_pin_string(file_name, esp);
   lock_acquire(&lock_filesystem);
   bool success = filesys_remove(file_name);
   lock_release(&lock_filesystem);
@@ -594,7 +607,7 @@ int syscall_open(const char *file_name, void *esp){
   int length = validate_string(file_name, esp);
   if (length > max_file_name)
     return -1;
-  load_and_pin_string(file_name);
+  load_and_pin_string(file_name, esp);
   lock_acquire(&lock_filesystem);
   struct file *new_file = filesys_open(file_name);
   if (new_file == NULL){
