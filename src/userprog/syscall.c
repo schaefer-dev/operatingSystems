@@ -430,6 +430,8 @@ syscall_write(int fd, const void *buffer, unsigned size, void *esp){
   /* check if the entire buffer is valid */
   validate_buffer(buffer,size, esp);
 
+  load_and_pin_buffer(buffer, size);
+
   if (fd == STDOUT_FILENO){
     putbuf(buffer,size);
     returnvalue = size;
@@ -450,6 +452,7 @@ syscall_write(int fd, const void *buffer, unsigned size, void *esp){
       lock_release(&lock_filesystem);
     }
   }
+  unpin_buffer(buffer, size);
   return returnvalue;
 }
 
@@ -463,6 +466,8 @@ syscall_read(int fd, void *buffer, unsigned size, void *esp){
 
   /* check if the entire buffer is valid */
   validate_buffer(buffer, size, esp);
+
+  load_and_pin_buffer(buffer, size);
 
   if (fd == STDOUT_FILENO){
     returnvalue = -1;
@@ -499,6 +504,7 @@ syscall_read(int fd, void *buffer, unsigned size, void *esp){
     }
   }
 
+  unpin_buffer(buffer, size);
   return returnvalue;
 }
 
@@ -524,10 +530,12 @@ syscall_exec(const char *cmd_line, void *esp){
     return -1;
   }
 
+  load_and_pin_string(cmd_line);
   pid_t pid = process_execute(cmd_line);
   
   struct child_process *current_child = get_child(pid);
   if (current_child == NULL){
+    unpin_string(cmd_line);
     return -1;
   }
 
@@ -539,10 +547,12 @@ syscall_exec(const char *cmd_line, void *esp){
 
   if (current_child->successfully_loaded == LOAD_FAILURE){
     lock_release(&current_child->child_process_lock);
+    unpin_string(cmd_line);
     return -1;
   }
 
   lock_release(&current_child->child_process_lock);
+  unpin_string(cmd_line);
   return pid;  // return to process pid
 }
 
@@ -555,9 +565,11 @@ syscall_create(const char *file_name, unsigned initial_size, void *esp){
   int length = validate_string(file_name, esp);
   if (length > max_file_name)
     return false;
+  load_and_pin_string(file_name);
   lock_acquire(&lock_filesystem);
   bool success = filesys_create(file_name, initial_size);
   lock_release(&lock_filesystem);
+  unpin_string(file_name);
   return success;
 }
 
@@ -568,9 +580,11 @@ syscall_remove(const char *file_name, void *esp){
   int length = validate_string(file_name, esp);
   if (length > max_file_name)
     return false;
+  load_and_pin_string(file_name);
   lock_acquire(&lock_filesystem);
   bool success = filesys_remove(file_name);
   lock_release(&lock_filesystem);
+  unpin_string(file_name);
   return success;
 }
 
@@ -580,10 +594,12 @@ int syscall_open(const char *file_name, void *esp){
   int length = validate_string(file_name, esp);
   if (length > max_file_name)
     return -1;
+  load_and_pin_string(file_name);
   lock_acquire(&lock_filesystem);
   struct file *new_file = filesys_open(file_name);
   if (new_file == NULL){
     lock_release(&lock_filesystem);
+    unpin_string(file_name);
     return -1;
   }
   struct thread *t = thread_current();
@@ -594,6 +610,7 @@ int syscall_open(const char *file_name, void *esp){
   current_entry->file = new_file;
   list_push_back (&t->file_list, &current_entry->elem);
   lock_release(&lock_filesystem);
+  unpin_string(file_name);
   return current_fd;
 }
 
