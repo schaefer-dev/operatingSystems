@@ -93,6 +93,9 @@ vm_sup_page_unpin (struct sup_page_entry *sup_page_entry){
 void
 vm_sup_page_load (struct sup_page_entry *sup_page_entry){
   struct thread *current_thread = thread_current();
+  lock_acquire(&(sup_page_entry->pin_lock));
+  sup_page_entry->pinned = true;
+  lock_release(&(sup_page_entry->pin_lock));
 
   switch (sup_page_entry->status)
     {
@@ -113,6 +116,7 @@ vm_sup_page_load (struct sup_page_entry *sup_page_entry){
         {
           /* page already loaded! */
           if (pagedir_get_page (current_thread->pagedir, sup_page_entry->vm_addr) == false){
+            sup_page_entry->pinned = false;
             syscall_exit(-1);
           }
           return;
@@ -122,6 +126,9 @@ vm_sup_page_load (struct sup_page_entry *sup_page_entry){
           printf("Illegal page status in sup_page_load!\n");
         }
     }
+  lock_acquire(&(sup_page_entry->pin_lock));
+  sup_page_entry->pinned = false;
+  lock_release(&(sup_page_entry->pin_lock));
 }
 
 

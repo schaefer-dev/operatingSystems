@@ -505,7 +505,7 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
    Return true if successful, false if a memory allocation error
    or disk read error occurs. */
 static bool
-load_segment (struct file *file, off_t ofs, uint8_t *upage,
+load_segment_not_lazy (struct file *file, off_t ofs, uint8_t *upage,
               uint32_t read_bytes, uint32_t zero_bytes, bool writable) 
 {
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
@@ -582,7 +582,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
    Return true if successful, false if a memory allocation error
    or disk read error occurs. */
 static bool
-load_segment_lazy (struct file *file, off_t ofs, uint8_t *upage,
+load_segment (struct file *file, off_t ofs, uint8_t *upage,
               uint32_t read_bytes, uint32_t zero_bytes, bool writable) 
 {
   //printf("DEBUG: load segment started with upage %p\n", upage);
