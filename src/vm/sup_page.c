@@ -46,7 +46,7 @@ hash_compare_vm_sup_page(const struct hash_elem *a_, const struct hash_elem *b_,
 struct sup_page_entry*
 vm_sup_page_lookup (struct thread *thread, void *vm_addr)
 {
-  lock_acquire(&thread->sup_page_lock);
+  ASSERT(lock_held_by_current_thread(&thread->sup_page_lock));
   struct sup_page_entry search_sup_page_entry;
   struct hash_elem *hash;
 
@@ -54,7 +54,6 @@ vm_sup_page_lookup (struct thread *thread, void *vm_addr)
   hash = hash_find(&(thread->sup_page_hashmap), &(search_sup_page_entry.h_elem));
   
   // TODO refactor this line!
-  lock_release(&thread->sup_page_lock);
   return hash != NULL ? hash_entry (hash, struct sup_page_entry, h_elem) : NULL; 
 }
 
@@ -322,11 +321,11 @@ vm_sup_page_allocate (void *vm_addr, bool writable){
 
   /* check if there is already the same hash contained in the hashmap, in which case we abort! */
   struct hash_elem *prev_elem;
-  struct sup_page_entry *previous_sup_page_entry = vm_sup_page_lookup(current_thread, vm_addr);
   lock_acquire(&current_thread->sup_page_lock);
+  struct sup_page_entry *previous_sup_page_entry = vm_sup_page_lookup(current_thread, vm_addr);
   prev_elem = hash_insert (&(current_thread->sup_page_hashmap), &(sup_page_entry->h_elem));
-  lock_release(&current_thread->sup_page_lock);
   if (prev_elem == NULL) {
+    lock_release(&current_thread->sup_page_lock);
     return true;
   }
   else {
@@ -335,6 +334,7 @@ vm_sup_page_allocate (void *vm_addr, bool writable){
     // TODO lots of hash collisions here!
     //printf("hash collision in sup page allocate (stack)! With sup page of type: %i and status %i\n", previous_sup_page_entry->type, previous_sup_page_entry->status);
     free (sup_page_entry);
+    lock_release(&current_thread->sup_page_lock);
     return false;
   }
 }
@@ -467,6 +467,7 @@ vm_grow_stack(void *fault_frame_addr){
 bool 
 vm_load_swap(void *fault_frame_addr){
   struct thread *thread = thread_current();
+  ASSERT(lock_held_by_current_thread(&thread->sup_page_lock));
 
   struct sup_page_entry *sup_page = vm_sup_page_lookup(thread, fault_frame_addr);
 
@@ -495,6 +496,7 @@ bool
 vm_load_file(void *fault_frame_addr){
   struct thread *thread = thread_current();
 
+  ASSERT(lock_held_by_current_thread(&thread->sup_page_lock));
   struct sup_page_entry *sup_page = vm_sup_page_lookup(thread, fault_frame_addr);
   ASSERT(sup_page != NULL);
 

@@ -180,6 +180,7 @@ page_fault (struct intr_frame *f)
   }
 
   // TODO not sure if we have to use faul_frame_addr or fault_addr here!
+  lock_acquire(&thread->sup_page_lock);
   struct sup_page_entry *sup_page_entry = vm_sup_page_lookup (thread, fault_frame_addr);
   //printf("DEBUG: sup_page found at vaddr: %p\n", fault_frame_addr);
   //printf("DEBUG: syscall esp = %p\n", stack_pointer);
@@ -193,12 +194,15 @@ page_fault (struct intr_frame *f)
       // TODO stack_pointer is null right now
       //if (stack_pointer == NULL)
         //printf("DEBUG: stack pointer NULL for grow_stack\n");
+      lock_release(&thread->sup_page_lock);
       vm_grow_stack(fault_frame_addr);
     } else {
+      lock_release(&thread->sup_page_lock);
       syscall_exit(-1);
     }
 
   } else {
       vm_sup_page_load(sup_page_entry);
+      lock_release(&thread->sup_page_lock);
   }
 }
