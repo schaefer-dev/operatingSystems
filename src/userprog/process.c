@@ -527,9 +527,7 @@ load_segment_not_lazy (struct file *file, off_t ofs, uint8_t *upage,
       if (!success)
         printf("page could not be allocated in load_segment \n");
 
-      lock_acquire(&thread->sup_page_lock);
       struct sup_page_entry *sup_page_entry = vm_sup_page_lookup(thread, upage);
-      lock_release(&thread->sup_page_lock);
       
       uint8_t *kpage = vm_frame_allocate(sup_page_entry, (PAL_USER), writable);
       if (kpage == NULL)
@@ -573,9 +571,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT (ofs % PGSIZE == 0);
   //printf("DEBUG: Load segment called!\n");
   struct thread *current_thread = thread_current();
-  lock_acquire(&current_thread->sup_page_lock);
   ASSERT(vm_sup_page_lookup(current_thread, upage) == NULL);
-  lock_release(&current_thread->sup_page_lock);
 
   while (read_bytes > 0 || zero_bytes > 0) 
     {
@@ -594,9 +590,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
       //printf("DEBUG: load segment created sup page with vaddr %p\n", upage);
 
-      lock_acquire(&current_thread->sup_page_lock);
       ASSERT(vm_sup_page_lookup(current_thread, upage) != NULL);
-      lock_release(&current_thread->sup_page_lock);
 
       //printf("DEBUG: sup_page allocated at vaddr: %p\n", upage);
 
@@ -633,7 +627,6 @@ setup_stack (void **esp, char *argument_buffer, int argcount)
   void *vaddr = (uint8_t *) PHYS_BASE - PGSIZE;
 
   success = vm_sup_page_allocate(vaddr, true);
-  lock_acquire(&current_thread->sup_page_lock);
   struct sup_page_entry *sup_page_entry = vm_sup_page_lookup(current_thread, vaddr);
   kpage = vm_frame_allocate (sup_page_entry, (PAL_USER | PAL_ZERO), true);
   sup_page_entry->phys_addr = kpage;
@@ -684,7 +677,6 @@ setup_stack (void **esp, char *argument_buffer, int argcount)
 
       *esp = int_esp_iter;
     }
-  lock_release(&current_thread->sup_page_lock);
   return success;
 }
 
