@@ -202,57 +202,60 @@ vm_evict_page(enum palloc_flags pflags){
             and don't evict this page in this iteration */
          pagedir_set_accessed(page_thread->pagedir, iter_sup_page->vm_addr, false);
       } else {
+        lock_acquire(&page_thread->sup_page_lock);
 
-          switch (iter_sup_page->type)
-          {
-            case PAGE_TYPE_MMAP:
-              {
-                // printf("DEBUG: evicting MMAP case\n");
-                vm_evict_mmap(iter_sup_page);
-                break;
-              }
-            case PAGE_TYPE_FILE:
-              {
-                // printf("DEBUG: evicting FILE case\n");
-                vm_evict_file(iter_sup_page, iter_frame);
-                break;
-              }
-            case PAGE_TYPE_STACK:
-              {
-                // printf("DEBUG: evicting STACK case\n");
-                vm_evict_stack(iter_sup_page, iter_frame);
-                break;
-              }
-          default:
+        switch (iter_sup_page->type)
+        {
+          case PAGE_TYPE_MMAP:
             {
-              // printf("Illegal PAGE_TYPE found!\n");
-              syscall_exit(-1);
+              // printf("DEBUG: evicting MMAP case\n");
+              vm_evict_mmap(iter_sup_page);
               break;
             }
-
+          case PAGE_TYPE_FILE:
+            {
+              // printf("DEBUG: evicting FILE case\n");
+              vm_evict_file(iter_sup_page, iter_frame);
+              break;
+            }
+          case PAGE_TYPE_STACK:
+            {
+              // printf("DEBUG: evicting STACK case\n");
+              vm_evict_stack(iter_sup_page, iter_frame);
+              break;
+            }
+        default:
+          {
+            // printf("Illegal PAGE_TYPE found!\n");
+            lock_release(&page_thread->sup_page_lock);
+            syscall_exit(-1);
+            break;
           }
-          /* frame is current itertion move iterator one step */
-          vm_evict_page_next_iterator();
 
-          // printf("DEBUG: removing from list started\n");
-          // remove frame from list
-          list_remove(&(iter_frame->l_elem));
-          // printf("DEBUG: removing from list finished\n");
-          /* free page and set phys_addr in sup_page to NULL and status to swapped b.c. the data of the frame
-              are placed in the swap partition 
-          */
-          palloc_free_page(iter_frame->phys_addr);
-          iter_sup_page->phys_addr = NULL;
+        }
+        lock_release(&page_thread->sup_page_lock);
+        /* frame is current itertion move iterator one step */
+        vm_evict_page_next_iterator();
 
-          // printf("DEBUG: removing from pagedir started\n");
-          pagedir_clear_page(page_thread->pagedir, iter_sup_page->vm_addr);
-          // printf("DEBUG: removing from pagedir finished\n");
-          // delete the frame entry and allocate a new page
-          free(iter_frame);
+        // printf("DEBUG: removing from list started\n");
+        // remove frame from list
+        list_remove(&(iter_frame->l_elem));
+        // printf("DEBUG: removing from list finished\n");
+        /* free page and set phys_addr in sup_page to NULL and status to swapped b.c. the data of the frame
+            are placed in the swap partition 
+        */
+        palloc_free_page(iter_frame->phys_addr);
+        iter_sup_page->phys_addr = NULL;
 
-          void* phys_addr = palloc_get_page(pflags | PAL_ZERO);
-          // printf("DEBUG: frame evict end\n");
-          return phys_addr;
+        // printf("DEBUG: removing from pagedir started\n");
+        pagedir_clear_page(page_thread->pagedir, iter_sup_page->vm_addr);
+        // printf("DEBUG: removing from pagedir finished\n");
+        // delete the frame entry and allocate a new page
+        free(iter_frame);
+
+        void* phys_addr = palloc_get_page(pflags | PAL_ZERO);
+        // printf("DEBUG: frame evict end\n");
+        return phys_addr;
       }
 
 
