@@ -55,6 +55,9 @@ pintos -v -k -T 2 --qemu  --filesys-size=2 -p tests/vm/mmap-read -a mmap-read -p
 # vm/mmap-close
 pintos -v -k -T 2 --qemu  --filesys-size=2 -p tests/vm/mmap-close -a mmap-close -p ../../tests/vm/sample.txt -a sample.txt --swap-size=4 -- -q  -f run mmap-close < /dev/null 2> tests/vm/mmap-close.errors > tests/vm/mmap-close.output
 
+# vm/mmap-unmap
+pintos -v -k -T 60 --qemu  --filesys-size=2 -p tests/vm/mmap-unmap -a mmap-unmap -p ../../tests/vm/sample.txt -a sample.txt --swap-size=4 -- -q  -f run mmap-unmap < /dev/null 2> tests/vm/mmap-unmap.errors > tests/vm/mmap-unmap.output
+
 # vm/mmap-write
 pintos -v -k -T 2 --qemu  --filesys-size=2 -p tests/vm/mmap-write -a mmap-write --swap-size=4 -- -q  -f run mmap-write < /dev/null 2> tests/vm/mmap-write.errors > tests/vm/mmap-write.output
 

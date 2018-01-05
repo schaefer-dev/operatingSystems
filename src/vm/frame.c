@@ -54,6 +54,38 @@ vm_frame_lookup (void *phys_addr)
 
 
 void
+debug_vm_frame_print ()
+{
+  struct frame *return_frame = NULL;
+  struct list_elem *iterator;
+
+  iterator = list_begin(&frame_list);
+  printf("\n--------- \n");
+
+  if (list_empty(&frame_list)){
+    return;
+  }
+
+  int counter = 0;
+  while (iterator != list_end(&frame_list)){
+    struct frame *search_frame;
+    search_frame = list_entry(iterator, struct frame, l_elem);
+    if (search_frame->sup_page_entry == NULL){
+      printf("\n!!!! sup_page_entry in the following frame is null!! -> ");
+    }
+    printf("%p, ", search_frame->phys_addr);
+    if (counter % 7 == 0)
+      printf("/n");
+    iterator = list_next(iterator);
+    counter += 1;
+  }
+
+  printf("\n--------- \n\n");
+  return return_frame;
+}
+
+
+void
 vm_frame_init () {
   lock_init (&frame_lock);
   list_init (&frame_list);
@@ -93,6 +125,8 @@ vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pfla
 
   lock_release (&frame_lock);
   //printf("DEBUG: frame allocate end\n");
+
+  //printf("DEBUG: allocated frame at entry: %p\n", frame->phys_addr);
   return page;
 }
 
@@ -179,9 +213,10 @@ vm_evict_page(enum palloc_flags pflags){
       // printf("DEBUG: sup page entry read from iter frame successfully\n");
       if (iter_sup_page == NULL){
         // TODO this should never happen? Search for the reason
-        //printf("DEBUG: Iter sup page of frame is NULL -> skipping in eviction\n");
+        //printf("DEBUG: Iter sup page of frame is NULL at phys_addr: %p -> skipping in eviction\n", iter_frame->phys_addr);
         // page was accessed -> look at next frame if accessed
         vm_evict_page_next_iterator();
+
         continue;
       }
 

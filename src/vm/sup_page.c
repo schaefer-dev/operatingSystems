@@ -178,8 +178,8 @@ vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED)
     default:
       {
         printf("Illegal PAGE_TYPE found!\n");
-        lock_release(&frame_lock);
         lock_release(&lookup_sup_page_entry->page_lock);
+        lock_release(&frame_lock);
         syscall_exit(-1);
         break;
       }
@@ -589,24 +589,51 @@ bool vm_write_mmap_back(struct sup_page_entry *sup_page_entry){
   return true;
 }
 
+
 /* removes mmap entry from hashtable and frees! */
 bool vm_delete_mmap_entry(struct sup_page_entry *sup_page_entry){
+  
   ASSERT(sup_page_entry != NULL);
+  struct thread *thread = sup_page_entry->thread;
+  ASSERT(!lock_held_by_current_thread(&lock_filesystem));
+  ASSERT(!lock_held_by_current_thread(&frame_lock));
+  ASSERT(!lock_held_by_current_thread(&sup_page_entry->page_lock));
+  ASSERT(!lock_held_by_current_thread(&thread->sup_page_lock));
+
+  // added page_lock again to test fixed page_parallel
+
+  lock_acquire(&frame_lock);
+  lock_acquire(&thread->sup_page_lock);
+  lock_acquire(&sup_page_entry->page_lock);
   if (!vm_write_mmap_back(sup_page_entry)){
     printf("vm_write_mmap_back failed! This should never happen!\n");
+    lock_release(&sup_page_entry->page_lock);
+    lock_release(&frame_lock);
+    lock_release(&thread->sup_page_lock);
     return false;
   }
-  struct thread *thread = sup_page_entry->thread;
-
-  // TODO free frame here!
-  
-  lock_acquire(&thread->sup_page_lock);
   struct hash_elem *hash_elem = hash_delete(&(thread->sup_page_hashmap), &(sup_page_entry->h_elem));
-  lock_release(&thread->sup_page_lock);
+
   if (hash_elem == NULL){
     printf("element which should be deleted not found");
+    lock_release(&sup_page_entry->page_lock);
+    lock_release(&frame_lock);
+    lock_release(&thread->sup_page_lock);
     return false;
   }
+
+  void *phys_addr = sup_page_entry->phys_addr;
+  void *upage = sup_page_entry->vm_addr;
+
+  if (sup_page_entry->status == PAGE_STATUS_LOADED){
+    ASSERT(phys_addr != NULL);
+    vm_frame_free(phys_addr, upage);
+  }
+  
+  lock_release(&sup_page_entry->page_lock);
+  lock_release(&thread->sup_page_lock);
   free(sup_page_entry);
+  lock_release(&frame_lock);
+
   return true;
 }
