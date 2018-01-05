@@ -390,6 +390,7 @@ bool
 vm_sup_page_mmap_allocate (void *vm_addr, struct file* file, off_t file_offset, 
   off_t read_bytes, int mmap_id, bool writable)
 {
+  ASSERT(lock_held_by_current_thread(&thread_current()->sup_page_lock));
   ASSERT(file_offset % PGSIZE == 0);
   // TODO implement writable parameter
   // TODO Frame Loading happens in page fault, we use round down (defined in vaddr.h) 
@@ -416,9 +417,7 @@ vm_sup_page_mmap_allocate (void *vm_addr, struct file* file, off_t file_offset,
 
   /* check if there is already the same hash contained in the hashmap, in which case we abort! */
   struct hash_elem *prev_elem;
-  lock_acquire(&current_thread->sup_page_lock);
   prev_elem = hash_insert (&(current_thread->sup_page_hashmap), &(sup_page_entry->h_elem));
-  lock_release(&current_thread->sup_page_lock);
   if (prev_elem == NULL) {
     return true;
   }
@@ -538,6 +537,7 @@ vm_load_file(void *fault_frame_addr){
 
 /* writes the changes back to file if dirty */
 bool vm_write_mmap_back(struct sup_page_entry *sup_page_entry){
+  ASSERT(lock_held_by_current_thread(&thread_current()->sup_page_lock));
   if (sup_page_entry->type != PAGE_TYPE_MMAP){
     printf("try to remove mmap but entry is not of type mmap");
     return false;
@@ -561,6 +561,7 @@ bool vm_write_mmap_back(struct sup_page_entry *sup_page_entry){
 
 /* removes mmap entry from hashtable and frees! */
 bool vm_delete_mmap_entry(struct sup_page_entry *sup_page_entry){
+  ASSERT(lock_held_by_current_thread(&thread_current()->sup_page_lock));
   ASSERT(sup_page_entry != NULL);
   if (!vm_write_mmap_back(sup_page_entry)){
     printf("vm_write_mmap_back failed! This should never happen!\n");
@@ -570,9 +571,7 @@ bool vm_delete_mmap_entry(struct sup_page_entry *sup_page_entry){
 
   // TODO free frame here!
   
-  lock_acquire(&thread->sup_page_lock);
   struct hash_elem *hash_elem = hash_delete(&(thread->sup_page_hashmap), &(sup_page_entry->h_elem));
-  lock_release(&thread->sup_page_lock);
   if (hash_elem == NULL){
     printf("element which should be deleted not found");
     return false;

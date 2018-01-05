@@ -367,11 +367,11 @@ load_and_pin_string(const void *buffer, void *esp){
       buffer_iter += 1;
       continue;
     }
+    lock_acquire(&thread_current()->sup_page_lock);
     last_vm_addr = vm_addr;
     if ((buffer_iter + 32 >= esp) && (buffer_iter < PHYS_BASE) && (PHYS_BASE - STACK_SIZE <= vm_addr)){
       vm_grow_stack(vm_addr);
     }
-    lock_acquire(&thread_current()->sup_page_lock);
     vm_sup_page_load_and_pin(vm_sup_page_lookup(current_thread, vm_addr));
     lock_release(&thread_current()->sup_page_lock);
     buffer_iter += 1;
