@@ -106,6 +106,8 @@ vm_frame_free (void *phys_addr, void *upage)
 {
   //printf("DEBUG: frame free begin\n");
   ASSERT(!lock_held_by_current_thread(&frame_lock));
+  ASSERT(upage != NULL);
+  ASSERT(phys_addr != NULL);
   lock_acquire (&frame_lock);
 
   struct frame *found_frame = vm_frame_lookup(phys_addr);
@@ -237,7 +239,7 @@ vm_evict_page(enum palloc_flags pflags){
 
           // printf("DEBUG: removing from list started\n");
           // remove frame from list
-          list_remove(&iter_frame->l_elem);
+          list_remove(&(iter_frame->l_elem));
           // printf("DEBUG: removing from list finished\n");
           /* free page and set phys_addr in sup_page to NULL and status to swapped b.c. the data of the frame
               are placed in the swap partition 
@@ -269,6 +271,7 @@ vm_evict_page(enum palloc_flags pflags){
   based on wheter it was dirty or not */
 void vm_evict_file(struct sup_page_entry *sup_page_entry, struct frame *frame){
   ASSERT(sup_page_entry != NULL);
+  ASSERT (lock_held_by_current_thread(&frame_lock));
   
   struct thread *thread = sup_page_entry->thread;
   bool dirty = pagedir_is_dirty(thread->pagedir, sup_page_entry->vm_addr);
@@ -288,6 +291,8 @@ void vm_evict_file(struct sup_page_entry *sup_page_entry, struct frame *frame){
 /* writes page content to swap and sets the status */
 void vm_evict_stack(struct sup_page_entry *sup_page_entry, struct frame *frame){
   ASSERT(sup_page_entry != NULL);
+  ASSERT (lock_held_by_current_thread(&frame_lock));
+
   block_sector_t swap_block = vm_swap_page(frame->phys_addr);
   sup_page_entry->status = PAGE_STATUS_SWAPPED;
   sup_page_entry->swap_addr = swap_block;
@@ -297,6 +302,8 @@ void vm_evict_stack(struct sup_page_entry *sup_page_entry, struct frame *frame){
   the status to not loaded b.c. we always load from file */
 void vm_evict_mmap(struct sup_page_entry *sup_page_entry){
   ASSERT(sup_page_entry != NULL);
+  ASSERT (lock_held_by_current_thread(&frame_lock));
+
   vm_write_mmap_back(sup_page_entry);
   sup_page_entry->status = PAGE_STATUS_NOT_LOADED;
 }

@@ -130,6 +130,8 @@ struct thread
     /* hashmap from vm_addr -> supplemental page for efficient lookup */
     struct hash sup_page_hashmap;
 
+    struct lock sup_page_lock;
+
     /* hashmap from mmap_id -> mmap_entry for efficient lookup */
     struct hash mmap_hashmap;
 #endif

@@ -87,8 +87,9 @@ start_process (void *file_name_)
   char *cmdline = "";
 
   struct thread *current_thread = thread_current();
-  vm_sup_page_init(current_thread);
 
+  /* initilize sup_page_hashmap and mmap_hashmap */
+  vm_sup_page_init(current_thread);
   hash_init(&(current_thread->mmap_hashmap), hash_mmap, hash_compare_mmap_entry, NULL);
 
   /* write all tokens split by space(s) to current_argument_space */
@@ -208,12 +209,15 @@ process_wait (pid_t child_tid)
 void
 process_exit (void)
 {
+  //printf("DEBUG: process_exit called\n");
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
   /* delete allocated hashmaps */
   mmap_hashmap_close(cur);
+  //printf("hashmap close finished\n");
   vm_sup_page_hashmap_close(cur);
+  //printf("sup page close finished\n");
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -561,6 +565,7 @@ static bool
 load_segment (struct file *file, off_t ofs, uint8_t *upage,
               uint32_t read_bytes, uint32_t zero_bytes, bool writable) 
 {
+  //printf("DEBUG: load segment started with upage %p\n", upage);
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
@@ -578,11 +583,15 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
       /* Add page to supplemental page table */
       //TODO ensure if page is loaded ZERO bytes are added simply use PAL_ZERO in every palloc_get_page?
-      if (!vm_sup_page_file_allocate (upage, file, (int32_t)ofs, (int32_t)page_read_bytes, writable)){
+      if (!vm_sup_page_file_allocate (upage, file, ofs, page_read_bytes, writable)){
         //printf("DEBUG: Load segment failed!\n");
         return false;
       }
-      struct sup_page_entry *sup_page_entry = vm_sup_page_lookup(current_thread, upage);
+
+      //printf("DEBUG: load segment created sup page with vaddr %p\n", upage);
+
+      ASSERT(vm_sup_page_lookup(current_thread, upage) != NULL);
+
       //printf("DEBUG: sup_page allocated at vaddr: %p\n", upage);
 
       /* Advance. */

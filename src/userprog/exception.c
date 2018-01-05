@@ -190,7 +190,9 @@ page_fault (struct intr_frame *f)
   if (sup_page_entry == NULL){
     //printf("DEBUG: sup_page null!\n");
     if ((fault_addr + 32 >= stack_pointer) && (fault_addr < PHYS_BASE) && (PHYS_BASE - STACK_SIZE <= fault_frame_addr)){
-        vm_grow_stack(fault_frame_addr);
+      if (stack_pointer == NULL)
+        printf("DEBUG: stack pointer NULL for grow_stack\n");
+      vm_grow_stack(fault_frame_addr);
     } else {
       syscall_exit(-1);
     }

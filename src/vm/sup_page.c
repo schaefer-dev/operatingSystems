@@ -24,7 +24,7 @@ unsigned
 hash_vm_sup_page(const struct hash_elem *sup_p_, void *aux UNUSED)
 {
   const struct sup_page_entry *sup_p = hash_entry(sup_p_, struct sup_page_entry, h_elem);
-  unsigned hash_val = hash_bytes(&sup_p->vm_addr, sizeof(sup_p->vm_addr));
+  unsigned hash_val = hash_int((int) sup_p->vm_addr);
   return hash_val;
 }
 
@@ -46,14 +46,15 @@ hash_compare_vm_sup_page(const struct hash_elem *a_, const struct hash_elem *b_,
 struct sup_page_entry*
 vm_sup_page_lookup (struct thread *thread, void *vm_addr)
 {
+  lock_acquire(&thread->sup_page_lock);
   struct sup_page_entry search_sup_page_entry;
   struct hash_elem *hash;
-
 
   search_sup_page_entry.vm_addr = vm_addr;
   hash = hash_find(&(thread->sup_page_hashmap), &(search_sup_page_entry.h_elem));
   
   // TODO refactor this line!
+  lock_release(&thread->sup_page_lock);
   return hash != NULL ? hash_entry (hash, struct sup_page_entry, h_elem) : NULL; 
 }
 
@@ -62,7 +63,9 @@ vm_sup_page_lookup (struct thread *thread, void *vm_addr)
 void
 vm_sup_page_hashmap_close(struct thread *thread)
 {
+  lock_acquire(&thread->sup_page_lock);
   hash_destroy(&(thread->sup_page_hashmap), vm_sup_page_free);
+  lock_release(&thread->sup_page_lock);
 }
 
 
@@ -126,24 +129,32 @@ vm_sup_page_load (struct sup_page_entry *sup_page_entry){
 void
 vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED)
 {
+  struct thread *current_thread = thread_current();
+  ASSERT(lock_held_by_current_thread(&current_thread->sup_page_lock));
+
+  //printf("DEBUG: vm_sup_page_free started!\n");
   struct sup_page_entry *lookup_sup_page_entry;
   lookup_sup_page_entry = hash_entry(hash, struct sup_page_entry, h_elem);
 
-  // TODO implement write back to disk here!
+  ASSERT(lookup_sup_page_entry != NULL);
+
   switch (lookup_sup_page_entry->type)
     {
       case PAGE_TYPE_MMAP:
         {
+          //printf("DEBUG: free sup page of mmap\n");
           vm_sup_page_free_mmap(lookup_sup_page_entry);
           break;
         }
       case PAGE_TYPE_FILE:
         {
+          //printf("DEBUG: free sup page of file\n");
           vm_sup_page_free_file(lookup_sup_page_entry);
           break;
         }
       case PAGE_TYPE_STACK:
         {
+          //printf("DEBUG: free sup page of stack\n");
           vm_sup_page_free_stack(lookup_sup_page_entry);
           break;
         }
@@ -163,6 +174,8 @@ vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED)
 void
 vm_sup_page_free_stack(struct sup_page_entry *sup_page_entry)
 {
+  struct thread *current_thread = thread_current();
+  ASSERT(lock_held_by_current_thread(&current_thread->sup_page_lock));
   switch (sup_page_entry->status)
     {
       case PAGE_STATUS_LOADED:
@@ -195,6 +208,8 @@ vm_sup_page_free_stack(struct sup_page_entry *sup_page_entry)
 void
 vm_sup_page_free_mmap(struct sup_page_entry *sup_page_entry)
 {
+  struct thread *current_thread = thread_current();
+  ASSERT(lock_held_by_current_thread(&current_thread->sup_page_lock));
   switch (sup_page_entry->status)
     {
       case PAGE_STATUS_LOADED:
@@ -230,15 +245,17 @@ vm_sup_page_free_mmap(struct sup_page_entry *sup_page_entry)
 void
 vm_sup_page_free_file(struct sup_page_entry *sup_page_entry)
 {
+  struct thread *current_thread = thread_current();
+  ASSERT(lock_held_by_current_thread(&current_thread->sup_page_lock));
     switch (sup_page_entry->status)
     {
       case PAGE_STATUS_LOADED:
         {
-					// TODO: check if this write back is neeeded
-          //vm_write_file_back_on_delete(sup_page_entry);
           void *phys_addr = sup_page_entry->phys_addr;
           void *upage = sup_page_entry->vm_addr;
+          //printf("DEBUG: freeing file with vaddr: %p\n", upage);
           vm_frame_free(phys_addr, upage);
+          //printf("DEBUG: reaching after frame_free in sup_page_free_file\n");
           break;
         }
       case PAGE_STATUS_SWAPPED:
@@ -266,14 +283,17 @@ vm_sup_page_free_file(struct sup_page_entry *sup_page_entry)
 /* initialize ressources for supplemental page */
 void
 vm_sup_page_init (struct thread *thread) {
+  struct thread *current_thread = thread_current();
+  lock_acquire(&current_thread->sup_page_lock);
   bool success = hash_init(&thread->sup_page_hashmap, hash_vm_sup_page, hash_compare_vm_sup_page, NULL);
+  lock_release(&current_thread->sup_page_lock);
 }
 
 
 /* function to allocate a supplemental page table entry e.g. a stack*/
 bool
-vm_sup_page_allocate (void *vm_addr, bool writable)
-{
+vm_sup_page_allocate (void *vm_addr, bool writable){
+
   // TODO Frame Loading happens in page fault, we use round down (defined in vaddr.h) 
   // to get the supplemental page using the sup_page_hashmap
 
@@ -299,13 +319,18 @@ vm_sup_page_allocate (void *vm_addr, bool writable)
 
   /* check if there is already the same hash contained in the hashmap, in which case we abort! */
   struct hash_elem *prev_elem;
+  struct sup_page_entry *previous_sup_page_entry = vm_sup_page_lookup(current_thread, vm_addr);
+  lock_acquire(&current_thread->sup_page_lock);
   prev_elem = hash_insert (&(current_thread->sup_page_hashmap), &(sup_page_entry->h_elem));
+  lock_release(&current_thread->sup_page_lock);
   if (prev_elem == NULL) {
     return true;
   }
   else {
     /* creation of supplemental page failed, because there was already an entry 
        with the same hashvalue */
+    // TODO lots of hash collisions here!
+    printf("hash collision in sup page allocate (stack)! With sup page of type: %i and status %i\n", previous_sup_page_entry->type, previous_sup_page_entry->status);
     free (sup_page_entry);
     return false;
   }
@@ -342,13 +367,16 @@ vm_sup_page_file_allocate (void *vm_addr, struct file* file, off_t file_offset, 
 
   /* check if there is already the same hash contained in the hashmap, in which case we abort! */
   struct hash_elem *prev_elem;
+  lock_acquire(&current_thread->sup_page_lock);
   prev_elem = hash_insert (&(current_thread->sup_page_hashmap), &(sup_page_entry->h_elem));
+  lock_release(&current_thread->sup_page_lock);
   if (prev_elem == NULL) {
     return true;
   }
   else {
     /* creation of supplemental page failed, because there was already an entry 
        with the same hashvalue */
+    printf("hash collision in sup page allocate for file!!!!\n");
     free (sup_page_entry);
     return false;
   }
@@ -386,13 +414,16 @@ vm_sup_page_mmap_allocate (void *vm_addr, struct file* file, off_t file_offset,
 
   /* check if there is already the same hash contained in the hashmap, in which case we abort! */
   struct hash_elem *prev_elem;
+  lock_acquire(&current_thread->sup_page_lock);
   prev_elem = hash_insert (&(current_thread->sup_page_hashmap), &(sup_page_entry->h_elem));
+  lock_release(&current_thread->sup_page_lock);
   if (prev_elem == NULL) {
     return true;
   }
   else {
     /* creation of supplemental page failed, because there was already an entry 
        with the same hashvalue */
+    printf("hash collision in sup page allocate (MMAP)!!!!\n");
     free (sup_page_entry);
     return false;
   }
@@ -462,6 +493,7 @@ vm_load_file(void *fault_frame_addr){
   struct thread *thread = thread_current();
 
   struct sup_page_entry *sup_page = vm_sup_page_lookup(thread, fault_frame_addr);
+  ASSERT(sup_page != NULL);
 
   struct file *file = sup_page->file;
   ASSERT(file != NULL);
@@ -483,10 +515,10 @@ vm_load_file(void *fault_frame_addr){
     lock_acquire(&lock_filesystem);
     off_t file_read_bytes = file_read_at (file, page, read_bytes, file_offset);
     lock_release(&lock_filesystem);
-    if (file_read_bytes!= read_bytes){
+    if (file_read_bytes != read_bytes){
       /* file not correctly read, free frame and indicate file not loaded */
-      vm_frame_free (page, fault_frame_addr);
       //printf("DEBUG: file not correctly read in load_file!\n");
+      vm_frame_free (page, fault_frame_addr);
       return false;
     }
   }
@@ -521,38 +553,20 @@ bool vm_write_mmap_back(struct sup_page_entry *sup_page_entry){
   return true;
 }
 
-/* writes the changes back to file if dirty only used if sup page will
-  deleted */
-bool vm_write_file_back_on_delete(struct sup_page_entry *sup_page_entry){
-  if (sup_page_entry->type != PAGE_TYPE_FILE){
-    printf("try to remove a file but entry is not of type file");
-    return false;
-  }
-  void* vaddr = sup_page_entry->vm_addr;
-  void* phys_addr = sup_page_entry->phys_addr;
-  struct thread *current_thread = sup_page_entry->thread;
-  if (!sup_page_entry->writable)
-    return true;
-  bool dirty = pagedir_is_dirty(current_thread->pagedir, vaddr);
-  if(!dirty)
-    return true;
-  struct file *file = sup_page_entry->file;
-  off_t file_offset = sup_page_entry->file_offset;
-  off_t read_bytes = sup_page_entry->read_bytes;
-  lock_acquire(&lock_filesystem);
-
-  off_t written_bytes = file_write_at(file, phys_addr, read_bytes, file_offset);
-
-  lock_release(&lock_filesystem);
-  return true;
-}
-
 /* removes mmap entry from hashtable and frees! */
 bool vm_delete_mmap_entry(struct sup_page_entry *sup_page_entry){
-  if (!vm_write_mmap_back(sup_page_entry))
+  ASSERT(sup_page_entry != NULL);
+  if (!vm_write_mmap_back(sup_page_entry)){
+    printf("vm_write_mmap_back failed! This should never happen!\n");
     return false;
+  }
   struct thread *thread = sup_page_entry->thread;
+
+  // TODO free frame here!
+  
+  lock_acquire(&thread->sup_page_lock);
   struct hash_elem *hash_elem = hash_delete(&(thread->sup_page_hashmap), &(sup_page_entry->h_elem));
+  lock_release(&thread->sup_page_lock);
   if (hash_elem == NULL){
     printf("element which should be deleted not found");
     return false;

@@ -520,6 +520,8 @@ init_thread (struct thread *t, const char *name, int priority)
   /*initialize lock for child_list */
   lock_init(&t->child_list_lock);
 
+  /*initialize lock for sup_page_hashmap */
+  lock_init(&t->sup_page_lock);
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);

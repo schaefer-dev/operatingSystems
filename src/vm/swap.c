@@ -47,13 +47,15 @@ vm_swap_get_free(void)
 
   /* get the first sector with SECTORS_FOR_PAGE successive free secors and sets these sectors to 
       occupied already */
-  block_sector_t free_sector = bitmap_scan_and_flip (swap_free_bitmap, 0, 1, true);
+  block_sector_t free_sector = bitmap_scan (swap_free_bitmap, 0, 1, true);
 
   if (free_sector == BITMAP_ERROR){
     PANIC("No SWAP Block of sufficient size found!");
     //TODO: check if return 0 is okay
     return 0;
   }
+
+  bitmap_set (swap_free_bitmap, free_sector, false);
 
   return free_sector;
 }
@@ -72,7 +74,7 @@ vm_swap_page(void *phys_addr)
   /* write SECTORS_FOR_PAGE amount of blocks into swap starting at block free_sector */
   block_sector_t sector_iterator = 0;
   for (sector_iterator = 0; sector_iterator < SECTORS_FOR_PAGE; sector_iterator++){
-      /* block_write Internally synchronizes accesses to block devices, so
+      /* TODO block_write Internally synchronizes accesses to block devices, so
           external per-block device locking is unneeded. */
       block_write(swap, free_sector * SECTORS_FOR_PAGE + sector_iterator,
                   phys_addr + (BLOCK_SECTOR_SIZE * sector_iterator));
@@ -96,7 +98,7 @@ vm_swap_back(block_sector_t swap_sector, void *phys_addr)
 
   /* if the sector we are trying to swap back is free, something went horribly wrong! */
   if (bitmap_test(swap_free_bitmap, swap_sector) == true){
-    printf("trying to swap back a free swap sector, this should never happen!");
+    printf("trying to swap back a free swap sector, this should never happen!\n");
     lock_release(&swap_lock);
     return;
   }
@@ -121,7 +123,7 @@ vm_swap_free(block_sector_t swap_sector)
 {
   lock_acquire(&swap_lock);
   if (bitmap_test(swap_free_bitmap, swap_sector) == true) {
-      printf("trying to free a already free swap block, this should never happen!");
+      printf("trying to free a already free swap block, this should never happen!\n");
       return;
   }
 
