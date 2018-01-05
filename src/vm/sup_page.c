@@ -88,7 +88,8 @@ vm_sup_page_unpin (struct sup_page_entry *sup_page_entry){
 }
 
 
-// TODO try to lock sup_page_lock during sup_page_load
+// TODO it would probably be a good idea to lock all loading of stuff (to not evict in the meantime)
+// try to lock sup_page_lock during sup_page_load
 void
 vm_sup_page_load (struct sup_page_entry *sup_page_entry){
   struct thread *current_thread = thread_current();
@@ -347,7 +348,7 @@ and the offset within the file*/
 bool
 vm_sup_page_file_allocate (void *vm_addr, struct file* file, off_t file_offset, off_t read_bytes, bool writable)
 {
-  ASSERT(file_offset % PGSIZE == 0);
+  //ASSERT(file_offset % PGSIZE == 0);
   // TODO implement writable parameter
   // TODO Frame Loading happens in page fault, we use round down (defined in vaddr.h) 
   // to get the supplemental page using the sup_page_hashmap
@@ -499,6 +500,8 @@ vm_load_swap(void *fault_frame_addr){
 /* implementation of load file called by page fault handler */
 bool 
 vm_load_file(void *fault_frame_addr){
+  //ASSERT(lock_held_by_current_thread(&lock_filesystem));
+
   struct thread *thread = thread_current();
 
   struct sup_page_entry *sup_page = vm_sup_page_lookup(thread, fault_frame_addr);
@@ -521,15 +524,13 @@ vm_load_file(void *fault_frame_addr){
   }
 
   if (read_bytes != 0){
-    lock_acquire(&lock_filesystem);
-    off_t file_read_bytes = file_read_at (file, page, read_bytes, file_offset);
-    lock_release(&lock_filesystem);
+    file_seek(file, file_offset);
+    off_t file_read_bytes = file_read (file, page, read_bytes);
+    memset (page + read_bytes, 0, PGSIZE - read_bytes);
     if (file_read_bytes != read_bytes){
       /* file not correctly read, free frame and indicate file not loaded */
-      //printf("DEBUG: file not correctly read in load_file!\n");
-      lock_acquire(&frame_lock);
+      printf("DEBUG: file not correctly read in vm_load_file!\n");
       vm_frame_free (page, fault_frame_addr);
-      lock_acquire(&frame_lock);
       return false;
     }
   }

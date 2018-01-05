@@ -179,7 +179,6 @@ page_fault (struct intr_frame *f)
     stack_pointer = NULL;
   }
 
-  // TODO not sure if we have to use faul_frame_addr or fault_addr here!
   struct sup_page_entry *sup_page_entry = vm_sup_page_lookup (thread, fault_frame_addr);
   //printf("DEBUG: sup_page found at vaddr: %p\n", fault_frame_addr);
   //printf("DEBUG: syscall esp = %p\n", stack_pointer);

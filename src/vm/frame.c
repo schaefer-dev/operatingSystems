@@ -107,7 +107,8 @@ vm_frame_free (void *phys_addr, void *upage)
   //printf("DEBUG: frame free begin\n");
   ASSERT(lock_held_by_current_thread(&frame_lock));
   ASSERT(upage != NULL);
-  ASSERT(phys_addr != NULL);
+  if(phys_addr == NULL)
+    return;
 
   struct frame *found_frame = vm_frame_lookup(phys_addr);
 

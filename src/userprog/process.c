@@ -343,6 +343,7 @@ load (const char *file_name, void (**eip) (void), void **esp, char* argument_buf
   process_activate ();
 
   /* Open executable file. */
+  // TODO think about if this lock can be safely removed with lazy loading
   lock_acquire(&lock_filesystem);
   file = filesys_open (file_name);
   if (file == NULL) 
@@ -436,6 +437,7 @@ load (const char *file_name, void (**eip) (void), void **esp, char* argument_buf
   success = true;
 
  done:
+  // TODO think about if this lock can be safely removed with lazy loading
   lock_release(&lock_filesystem);
   /* We arrive here whether the load is successful or not. */
   return success;
@@ -509,6 +511,7 @@ load_segment_not_lazy (struct file *file, off_t ofs, uint8_t *upage,
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
+  off_t current_offset = ofs;
 
   file_seek (file, ofs);
   while (read_bytes > 0 || zero_bytes > 0) 
@@ -528,6 +531,12 @@ load_segment_not_lazy (struct file *file, off_t ofs, uint8_t *upage,
         printf("page could not be allocated in load_segment \n");
 
       struct sup_page_entry *sup_page_entry = vm_sup_page_lookup(thread, upage);
+
+      sup_page_entry->type = PAGE_TYPE_FILE;
+      sup_page_entry->status = PAGE_STATUS_LOADED;
+      sup_page_entry->file = file;
+      sup_page_entry->file_offset = ofs;
+      sup_page_entry->read_bytes = page_read_bytes;
       
       uint8_t *kpage = vm_frame_allocate(sup_page_entry, (PAL_USER), writable);
       if (kpage == NULL)
@@ -539,12 +548,14 @@ load_segment_not_lazy (struct file *file, off_t ofs, uint8_t *upage,
           vm_frame_free(kpage, upage);
           return false; 
         }
+      sup_page_entry->phys_addr = kpage;
       memset (kpage + page_read_bytes, 0, page_zero_bytes);
 
       /* Advance. */
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
+      current_offset += page_read_bytes;
     }
 
   return true;
@@ -584,13 +595,18 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* Add page to supplemental page table */
       //TODO ensure if page is loaded ZERO bytes are added simply use PAL_ZERO in every palloc_get_page?
       if (!vm_sup_page_file_allocate (upage, file, ofs, page_read_bytes, writable)){
-        //printf("DEBUG: Load segment failed!\n");
+        printf("DEBUG: Load segment failed!\n");
         return false;
       }
 
+
       //printf("DEBUG: load segment created sup page with vaddr %p\n", upage);
 
-      ASSERT(vm_sup_page_lookup(current_thread, upage) != NULL);
+      //struct sup_page_entry *created_sup_page = vm_sup_page_lookup(current_thread, upage);
+      //ASSERT(created_sup_page != NULL);
+
+      // TODO with this line below we pass page_parallel
+      //vm_load_file(created_sup_page->vm_addr);
 
       //printf("DEBUG: sup_page allocated at vaddr: %p\n", upage);
 
