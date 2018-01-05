@@ -14,7 +14,6 @@
 #include "filesys/file.h"
 #include "vm/swap.h"
 #include "userprog/pagedir.h"
-#include <string.h>
 
 void vm_sup_page_free_stack(struct sup_page_entry *sup_page_entry);
 void vm_sup_page_free_mmap(struct sup_page_entry *sup_page_entry);
