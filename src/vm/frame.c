@@ -188,7 +188,11 @@ vm_evict_page(enum palloc_flags pflags){
       /* if sup page is pinned look at next page */
       /* TODO check why i cant acquire page lock here as it should be different sup page 
          than the one i am currently allocating for */
-      //lock_acquire(&(iter_sup_page->page_lock));
+      //bool lock_taken = false;
+      //if (lock_held_by_current_thread(&iter_sup_page->page_lock)){
+      //  lock_acquire(&iter_sup_page->page_lock);
+      //  lock_taken = true;
+      //}
       lock_acquire(&(iter_sup_page->pin_lock));
       if (iter_sup_page->pinned == true){
         lock_release(&(iter_sup_page->pin_lock));
@@ -234,13 +238,13 @@ vm_evict_page(enum palloc_flags pflags){
           {
             // printf("Illegal PAGE_TYPE found!\n");
             lock_release(&page_thread->sup_page_lock);
+            //if (lock_taken)
+            //  lock_release(&iter_sup_page->page_lock);
             syscall_exit(-1);
             break;
           }
 
         }
-        //lock_release(&(iter_sup_page->page_lock));
-        lock_release(&page_thread->sup_page_lock);
         /* frame is current itertion move iterator one step */
         vm_evict_page_next_iterator();
 
@@ -261,13 +265,20 @@ vm_evict_page(enum palloc_flags pflags){
         free(iter_frame);
 
         void* phys_addr = palloc_get_page(pflags | PAL_ZERO);
+
+        lock_release(&page_thread->sup_page_lock);
+        //if (lock_taken)
+        //  lock_release(&iter_sup_page->page_lock);
+
         // printf("DEBUG: frame evict end\n");
         return phys_addr;
       }
 
-
       // page was accessed -> look at next frame if accessed
       vm_evict_page_next_iterator();
+
+      //if (lock_taken)
+      //  lock_release(&iter_sup_page->page_lock);
   }
   // should never be reached
   // printf("DEBUG: frame evict end\n");
