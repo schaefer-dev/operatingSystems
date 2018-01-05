@@ -324,6 +324,8 @@ vm_sup_page_allocate (void *vm_addr, bool writable){
   /* check if there is already the same hash contained in the hashmap, in which case we abort! */
   struct hash_elem *prev_elem;
   struct sup_page_entry *previous_sup_page_entry = vm_sup_page_lookup(current_thread, vm_addr);
+  if (previous_sup_page_entry != NULL)
+    return true;
   lock_acquire(&current_thread->sup_page_lock);
   prev_elem = hash_insert (&(current_thread->sup_page_hashmap), &(sup_page_entry->h_elem));
   lock_release(&current_thread->sup_page_lock);
@@ -334,7 +336,7 @@ vm_sup_page_allocate (void *vm_addr, bool writable){
     /* creation of supplemental page failed, because there was already an entry 
        with the same hashvalue */
     // TODO lots of hash collisions here!
-    //printf("hash collision in sup page allocate (stack)! With sup page of type: %i and status %i\n", previous_sup_page_entry->type, previous_sup_page_entry->status);
+    printf("hash collision in sup page allocate (stack)! With sup page of type: %i and status %i\n", previous_sup_page_entry->type, previous_sup_page_entry->status);
     free (sup_page_entry);
     return false;
   }
@@ -440,11 +442,14 @@ bool
 vm_grow_stack(void *fault_frame_addr){
   
   struct thread *thread = thread_current();
+  struct sup_page_entry *before_sup_page_entry = vm_sup_page_lookup(thread, fault_frame_addr);
+
+  if (before_sup_page_entry != NULL)
+    return true;
 
   if (vm_sup_page_allocate(fault_frame_addr, true)){
 
     struct sup_page_entry *sup_page_entry = vm_sup_page_lookup(thread, fault_frame_addr);
-
     ASSERT(sup_page_entry != NULL);
 
     void *page = vm_frame_allocate(sup_page_entry, (PAL_ZERO | PAL_USER) , true);
@@ -475,7 +480,7 @@ vm_load_swap(void *fault_frame_addr){
 
   bool writable = sup_page->writable;
 
-  void *page = vm_frame_allocate(vm_sup_page_lookup(thread, fault_frame_addr), (PAL_ZERO | PAL_USER) , writable);
+  void *page = vm_frame_allocate(sup_page, (PAL_ZERO | PAL_USER) , writable);
 
   if (page == NULL){
     printf("load file could not allocate page!\n");
