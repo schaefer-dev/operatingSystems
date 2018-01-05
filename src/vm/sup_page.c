@@ -131,6 +131,7 @@ vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED)
 {
   struct thread *current_thread = thread_current();
   ASSERT(lock_held_by_current_thread(&current_thread->sup_page_lock));
+  lock_acquire(&frame_lock);
 
   //printf("DEBUG: vm_sup_page_free started!\n");
   struct sup_page_entry *lookup_sup_page_entry;
@@ -161,12 +162,14 @@ vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED)
     default:
       {
         printf("Illegal PAGE_TYPE found!\n");
+        lock_release(&frame_lock);
         syscall_exit(-1);
         break;
       }
 
     }
 
+  lock_release(&frame_lock);
   free(lookup_sup_page_entry);
 }
 
@@ -330,7 +333,7 @@ vm_sup_page_allocate (void *vm_addr, bool writable){
     /* creation of supplemental page failed, because there was already an entry 
        with the same hashvalue */
     // TODO lots of hash collisions here!
-    printf("hash collision in sup page allocate (stack)! With sup page of type: %i and status %i\n", previous_sup_page_entry->type, previous_sup_page_entry->status);
+    //printf("hash collision in sup page allocate (stack)! With sup page of type: %i and status %i\n", previous_sup_page_entry->type, previous_sup_page_entry->status);
     free (sup_page_entry);
     return false;
   }
@@ -518,7 +521,9 @@ vm_load_file(void *fault_frame_addr){
     if (file_read_bytes != read_bytes){
       /* file not correctly read, free frame and indicate file not loaded */
       //printf("DEBUG: file not correctly read in load_file!\n");
+      lock_acquire(&frame_lock);
       vm_frame_free (page, fault_frame_addr);
+      lock_acquire(&frame_lock);
       return false;
     }
   }

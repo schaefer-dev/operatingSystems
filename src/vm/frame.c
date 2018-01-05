@@ -105,17 +105,15 @@ void
 vm_frame_free (void *phys_addr, void *upage)
 {
   //printf("DEBUG: frame free begin\n");
-  ASSERT(!lock_held_by_current_thread(&frame_lock));
+  ASSERT(lock_held_by_current_thread(&frame_lock));
   ASSERT(upage != NULL);
   ASSERT(phys_addr != NULL);
-  lock_acquire (&frame_lock);
 
   struct frame *found_frame = vm_frame_lookup(phys_addr);
 
   if (found_frame == NULL) {
     // the table was not found, this should be impossible!
     printf("frame at %p not found in Frame Table!\n", phys_addr);
-    lock_release (&frame_lock);
     return;
   }
 
@@ -132,7 +130,6 @@ vm_frame_free (void *phys_addr, void *upage)
   uninstall_page(upage);
   free(found_frame);
 
-  lock_release (&frame_lock);
   //printf("DEBUG: frame free end\n");
   return;
 }
