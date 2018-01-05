@@ -343,6 +343,7 @@ and the offset within the file*/
 bool
 vm_sup_page_file_allocate (void *vm_addr, struct file* file, off_t file_offset, off_t read_bytes, bool writable)
 {
+  ASSERT(lock_held_by_current_thread(&thread_current()->sup_page_lock));
   ASSERT(file_offset % PGSIZE == 0);
   // TODO implement writable parameter
   // TODO Frame Loading happens in page fault, we use round down (defined in vaddr.h) 
@@ -369,9 +370,7 @@ vm_sup_page_file_allocate (void *vm_addr, struct file* file, off_t file_offset, 
 
   /* check if there is already the same hash contained in the hashmap, in which case we abort! */
   struct hash_elem *prev_elem;
-  lock_acquire(&current_thread->sup_page_lock);
   prev_elem = hash_insert (&(current_thread->sup_page_hashmap), &(sup_page_entry->h_elem));
-  lock_release(&current_thread->sup_page_lock);
   if (prev_elem == NULL) {
     return true;
   }

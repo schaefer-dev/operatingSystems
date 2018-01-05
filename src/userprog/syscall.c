@@ -66,6 +66,8 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
+  ASSERT(! lock_held_by_current_thread(&thread_current()->sup_page_lock));
+
   if(f == NULL)
     syscall_exit(-1);
   void *esp = (int*) f->esp;
@@ -237,6 +239,7 @@ syscall_handler (struct intr_frame *f UNUSED)
    context */
 void
 validate_pointer(const void *pointer, void *esp){
+  ASSERT(! lock_held_by_current_thread(&thread_current()->sup_page_lock));
   struct thread *thread = thread_current();
 	// TODO: check if this line can be removed
   //uint32_t *pagedir = thread->pagedir;
@@ -261,6 +264,7 @@ validate_pointer(const void *pointer, void *esp){
    context */
 void
 validate_buffer(const void *buffer, unsigned size, void *esp){
+  ASSERT(! lock_held_by_current_thread(&thread_current()->sup_page_lock));
   //printf("DEBUG: Validate buffer start in syscall\n");
   unsigned i = 0;
   const char* buffer_iter = buffer;
@@ -278,6 +282,7 @@ validate_buffer(const void *buffer, unsigned size, void *esp){
    context, otherwise returns length of string */
 int
 validate_string(const char *buffer, void *esp){
+  ASSERT(! lock_held_by_current_thread(&thread_current()->sup_page_lock));
   //printf("DEBUG: Validate string start in syscall\n");
   int length = 0;
   const char* buffer_iter = buffer;
@@ -298,6 +303,7 @@ validate_string(const char *buffer, void *esp){
 /* TODO this should be done more efficiently! */
 void
 load_and_pin_buffer(const void *buffer, unsigned size, void *esp){
+  ASSERT(! lock_held_by_current_thread(&thread_current()->sup_page_lock));
   //printf("DEBUG: loading and pinning buffer started\n");
   struct thread *current_thread = thread_current();
   void *last_vm_addr = NULL;
@@ -327,6 +333,7 @@ load_and_pin_buffer(const void *buffer, unsigned size, void *esp){
 /* TODO this should be done more efficiently! */
 void
 unpin_buffer(const void *buffer, unsigned size){
+  ASSERT(! lock_held_by_current_thread(&thread_current()->sup_page_lock));
   //printf("DEBUG: unpinning buffer started\n");
   struct thread *current_thread = thread_current();
   void *last_vm_addr = NULL;
@@ -353,6 +360,7 @@ unpin_buffer(const void *buffer, unsigned size){
 /* TODO this should be done more efficiently! */
 void
 load_and_pin_string(const void *buffer, void *esp){
+  ASSERT(! lock_held_by_current_thread(&thread_current()->sup_page_lock));
   //printf("DEBUG: loading and pinning string started\n");
   struct thread *current_thread = thread_current();
   void *last_vm_addr = NULL;
@@ -383,6 +391,7 @@ load_and_pin_string(const void *buffer, void *esp){
 /* TODO this should be done more efficiently! */
 void
 unpin_string(const void *buffer){
+  ASSERT(! lock_held_by_current_thread(&thread_current()->sup_page_lock));
   //printf("DEBUG: unpinning string started\n");
   struct thread *current_thread = thread_current();
   void *last_vm_addr;
@@ -792,6 +801,7 @@ void syscall_close(int fd){
 
 /* checks if vaddr is page aligned and fd is coorect */
 bool validate_mmap(int fd, void *vaddr, void *esp){
+  ASSERT(! lock_held_by_current_thread(&thread_current()->sup_page_lock));
   /* check if fd is 0 or 1 because this is invalid */
   if( fd == 0 || fd == 1){
     printf("fd is not correct\n");
@@ -823,6 +833,7 @@ bool validate_mmap(int fd, void *vaddr, void *esp){
 /* checks if vaddr is already mapped -> overlap
  returns false if maped address overlaps */
 bool validate_mmap_address(void *vaddr, void *esp){
+  ASSERT(! lock_held_by_current_thread(&thread_current()->sup_page_lock));
   lock_acquire(&thread_current()->sup_page_lock);
   if (vm_sup_page_lookup(thread_current(), vaddr) || !(is_user_vaddr(vaddr)))
     lock_release(&thread_current()->sup_page_lock);
@@ -838,6 +849,7 @@ bool validate_mmap_address(void *vaddr, void *esp){
 
 /* checks if mmap overlaps */
 bool check_mmap_overlap(void *vaddr, unsigned size, void *esp){
+  ASSERT(! lock_held_by_current_thread(&thread_current()->sup_page_lock));
   while (size > 0) {
     /* Calculate how to fill this page. */
     off_t page_read_bytes = size;
@@ -856,6 +868,7 @@ bool check_mmap_overlap(void *vaddr, unsigned size, void *esp){
 
 /* syscall to mmap files */
 mapid_t syscall_mmap(int fd, void *vaddr, void *esp){
+  ASSERT(! lock_held_by_current_thread(&thread_current()->sup_page_lock));
   //printf("syscall mmap reached\n");
   if (!validate_mmap(fd, vaddr, esp))
     return -1;
@@ -927,6 +940,7 @@ mapid_t syscall_mmap(int fd, void *vaddr, void *esp){
 }
 
 void syscall_munmap (mapid_t mapping){
+  ASSERT(! lock_held_by_current_thread(&thread_current()->sup_page_lock));
   struct thread *thread = thread_current();
   /* get mmap entry from hash map and check if one is found */
   struct mmap_entry *mmap_entry = mmap_entry_lookup (thread, mapping);

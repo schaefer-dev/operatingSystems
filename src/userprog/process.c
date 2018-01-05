@@ -589,6 +589,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
       /* Add page to supplemental page table */
       //TODO ensure if page is loaded ZERO bytes are added simply use PAL_ZERO in every palloc_get_page?
+      lock_acquire(&current_thread->sup_page_lock);
       if (!vm_sup_page_file_allocate (upage, file, ofs, page_read_bytes, writable)){
         //printf("DEBUG: Load segment failed!\n");
         return false;
@@ -596,7 +597,6 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
       //printf("DEBUG: load segment created sup page with vaddr %p\n", upage);
 
-      lock_acquire(&current_thread->sup_page_lock);
       ASSERT(vm_sup_page_lookup(current_thread, upage) != NULL);
       lock_release(&current_thread->sup_page_lock);
 
