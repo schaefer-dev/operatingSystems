@@ -194,8 +194,8 @@ page_fault (struct intr_frame *f)
       // TODO stack_pointer is null right now
       //if (stack_pointer == NULL)
         //printf("DEBUG: stack pointer NULL for grow_stack\n");
-      lock_release(&thread->sup_page_lock);
       vm_grow_stack(fault_frame_addr);
+      lock_release(&thread->sup_page_lock);
     } else {
       lock_release(&thread->sup_page_lock);
       syscall_exit(-1);

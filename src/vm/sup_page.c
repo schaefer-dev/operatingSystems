@@ -301,6 +301,8 @@ vm_sup_page_allocate (void *vm_addr, bool writable){
 
   struct thread *current_thread = thread_current();
 
+  ASSERT(lock_held_by_current_thread(&current_thread->sup_page_lock));
+
   struct sup_page_entry *sup_page_entry = (struct sup_page_entry *) malloc(sizeof(struct sup_page_entry));
 
   sup_page_entry->phys_addr = NULL;
@@ -321,11 +323,9 @@ vm_sup_page_allocate (void *vm_addr, bool writable){
 
   /* check if there is already the same hash contained in the hashmap, in which case we abort! */
   struct hash_elem *prev_elem;
-  lock_acquire(&current_thread->sup_page_lock);
   struct sup_page_entry *previous_sup_page_entry = vm_sup_page_lookup(current_thread, vm_addr);
   prev_elem = hash_insert (&(current_thread->sup_page_hashmap), &(sup_page_entry->h_elem));
   if (prev_elem == NULL) {
-    lock_release(&current_thread->sup_page_lock);
     return true;
   }
   else {
@@ -334,7 +334,6 @@ vm_sup_page_allocate (void *vm_addr, bool writable){
     // TODO lots of hash collisions here!
     //printf("hash collision in sup page allocate (stack)! With sup page of type: %i and status %i\n", previous_sup_page_entry->type, previous_sup_page_entry->status);
     free (sup_page_entry);
-    lock_release(&current_thread->sup_page_lock);
     return false;
   }
 }
@@ -437,8 +436,8 @@ vm_sup_page_mmap_allocate (void *vm_addr, struct file* file, off_t file_offset,
 /* implementation of stack growth called by page fault handler */
 bool
 vm_grow_stack(void *fault_frame_addr){
-  
   struct thread *thread = thread_current();
+  ASSERT(lock_held_by_current_thread(&thread->sup_page_lock));
 
   if (vm_sup_page_allocate(fault_frame_addr, true)){
 

@@ -520,7 +520,9 @@ load_segment_not_lazy (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Get a page of memory. */
+      lock_release(&thread_current()->sup_page_lock);
       bool success = vm_sup_page_allocate(upage, writable);
+      lock_release(&thread_current()->sup_page_lock);
 
       struct thread *thread = thread_current();
 
@@ -632,8 +634,8 @@ setup_stack (void **esp, char *argument_buffer, int argcount)
   struct thread *current_thread = thread_current();
   void *vaddr = (uint8_t *) PHYS_BASE - PGSIZE;
 
-  success = vm_sup_page_allocate(vaddr, true);
   lock_acquire(&current_thread->sup_page_lock);
+  success = vm_sup_page_allocate(vaddr, true);
   struct sup_page_entry *sup_page_entry = vm_sup_page_lookup(current_thread, vaddr);
   kpage = vm_frame_allocate (sup_page_entry, (PAL_USER | PAL_ZERO), true);
   sup_page_entry->phys_addr = kpage;
