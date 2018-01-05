@@ -179,16 +179,20 @@ vm_evict_page(enum palloc_flags pflags){
       // printf("DEBUG: sup page entry read from iter frame successfully\n");
       if (iter_sup_page == NULL){
         // TODO this should never happen? Search for the reason
-        printf("DEBUG: Iter sup page of frame is NULL -> skipping in eviction\n");
+        //printf("DEBUG: Iter sup page of frame is NULL -> skipping in eviction\n");
         // page was accessed -> look at next frame if accessed
         vm_evict_page_next_iterator();
         continue;
       }
 
       /* if sup page is pinned look at next page */
+      /* TODO check why i cant acquire page lock here as it should be different sup page 
+         than the one i am currently allocating for */
+      //lock_acquire(&(iter_sup_page->page_lock));
       lock_acquire(&(iter_sup_page->pin_lock));
       if (iter_sup_page->pinned == true){
         lock_release(&(iter_sup_page->pin_lock));
+        //lock_release(&(iter_sup_page->page_lock));
         vm_evict_page_next_iterator();
         continue;
       }
@@ -235,6 +239,7 @@ vm_evict_page(enum palloc_flags pflags){
           }
 
         }
+        //lock_release(&(iter_sup_page->page_lock));
         lock_release(&page_thread->sup_page_lock);
         /* frame is current itertion move iterator one step */
         vm_evict_page_next_iterator();
