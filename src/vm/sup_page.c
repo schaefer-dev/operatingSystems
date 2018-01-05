@@ -107,13 +107,13 @@ vm_sup_page_load (struct sup_page_entry *sup_page_entry){
       case PAGE_STATUS_NOT_LOADED:
         {
           /* can only happen for FILE / MMAP */
-          vm_load_file(sup_page_entry->vm_addr);
+          vm_load_file(sup_page_entry);
           break;
         }
 
       case PAGE_STATUS_SWAPPED:
         {
-          vm_load_swap(sup_page_entry->vm_addr);
+          vm_load_swap(sup_page_entry);
           break;
         }
 
@@ -495,17 +495,17 @@ vm_grow_stack(void *fault_frame_addr)
 //TODO: implement this function
 /* implementation of load from swap partition called by page fault handler */
 bool 
-vm_load_swap(void *fault_frame_addr)
+vm_load_swap(struct sup_page_entry *sup_page_entry)
 {
-  struct thread *thread = thread_current();
+  ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
 
-  struct sup_page_entry *sup_page = vm_sup_page_lookup(thread, fault_frame_addr);
+  ASSERT(sup_page_entry != NULL);
 
-  block_sector_t swap_addr = sup_page -> swap_addr;
+  block_sector_t swap_addr = sup_page_entry -> swap_addr;
 
-  bool writable = sup_page->writable;
+  bool writable = sup_page_entry->writable;
 
-  void *page = vm_frame_allocate(sup_page, (PAL_ZERO | PAL_USER) , writable);
+  void *page = vm_frame_allocate(sup_page_entry, (PAL_ZERO | PAL_USER) , writable);
 
   if (page == NULL){
     printf("load file could not allocate page!\n");
@@ -515,7 +515,7 @@ vm_load_swap(void *fault_frame_addr)
   vm_swap_back(swap_addr, page);
 
   /*indicate that frame is now loaded */
-  sup_page->status = PAGE_STATUS_LOADED;
+  sup_page_entry->status = PAGE_STATUS_LOADED;
 
   return true;
 
@@ -523,24 +523,21 @@ vm_load_swap(void *fault_frame_addr)
 
 /* implementation of load file called by page fault handler */
 bool 
-vm_load_file(void *fault_frame_addr){
-  //ASSERT(lock_held_by_current_thread(&lock_filesystem));
+vm_load_file(struct sup_page_entry *sup_page_entry){
+  ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
 
-  struct thread *thread = thread_current();
+  ASSERT(sup_page_entry != NULL);
 
-  struct sup_page_entry *sup_page = vm_sup_page_lookup(thread, fault_frame_addr);
-  ASSERT(sup_page != NULL);
-
-  struct file *file = sup_page->file;
+  struct file *file = sup_page_entry->file;
   ASSERT(file != NULL);
 
-  off_t file_offset = sup_page->file_offset;
+  off_t file_offset = sup_page_entry->file_offset;
 
-  off_t read_bytes = sup_page->read_bytes;
+  off_t read_bytes = sup_page_entry->read_bytes;
 
-  bool writable = sup_page->writable;
+  bool writable = sup_page_entry->writable;
 
-  void *page = vm_frame_allocate(sup_page, (PAL_ZERO | PAL_USER) , writable);
+  void *page = vm_frame_allocate(sup_page_entry, (PAL_ZERO | PAL_USER) , writable);
 
   if (page == NULL){
     printf("load file could not allocate page!\n");
@@ -560,7 +557,7 @@ vm_load_file(void *fault_frame_addr){
   }
 
   /*indicate that frame is now loaded */
-  sup_page->status = PAGE_STATUS_LOADED;
+  sup_page_entry->status = PAGE_STATUS_LOADED;
 
   //printf("DEBUG: load_file finished cleanly!\n");
   return true;
@@ -568,6 +565,10 @@ vm_load_file(void *fault_frame_addr){
 
 /* writes the changes back to file if dirty */
 bool vm_write_mmap_back(struct sup_page_entry *sup_page_entry){
+  ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
+
+  ASSERT(sup_page_entry != NULL);
+
   if (sup_page_entry->type != PAGE_TYPE_MMAP){
     printf("try to remove mmap but entry is not of type mmap");
     return false;
