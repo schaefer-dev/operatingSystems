@@ -1,5 +1,6 @@
 #include <hash.h>
 #include <list.h>
+#include <string.h>
 #include "lib/kernel/list.h"
 #include "threads/vaddr.h"
 #include "threads/palloc.h"
