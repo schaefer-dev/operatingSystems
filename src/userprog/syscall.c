@@ -247,9 +247,13 @@ validate_pointer(const void *pointer, void *esp){
       //printf("DEBUG: Validate pointer fail in syscall\n");
     syscall_exit(-1);
   }
+  lock_acquire(&thread->sup_page_lock);
   if (vm_sup_page_lookup(thread, frame_pointer) == NULL)
-    if ((pointer) < esp - 32) 
+    if ((pointer) < esp - 32) {
+      lock_release(&thread->sup_page_lock);
       syscall_exit(-1);
+    }
+  lock_release(&thread->sup_page_lock);
 }
 
 
@@ -311,8 +315,10 @@ load_and_pin_buffer(const void *buffer, unsigned size, void *esp){
     last_vm_addr = vm_addr;
     if ((buffer_iter + 32 >= esp) && (buffer_iter < PHYS_BASE) && (PHYS_BASE - STACK_SIZE <= vm_addr)){
       vm_grow_stack(vm_addr);
-    }
+    }  
+    lock_acquire(&thread_current()->sup_page_lock);
     vm_sup_page_load_and_pin(vm_sup_page_lookup(current_thread, vm_addr));
+    lock_release(&thread_current()->sup_page_lock);
     i += 1;
   }
   //printf("DEBUG: loading and pinning buffer ended\n");
@@ -336,7 +342,9 @@ unpin_buffer(const void *buffer, unsigned size){
       continue;
     }
     last_vm_addr = vm_addr;
+    lock_acquire(&thread_current()->sup_page_lock);
     vm_sup_page_unpin(vm_sup_page_lookup(current_thread, vm_addr));
+    lock_release(&thread_current()->sup_page_lock);
     i += 1;
   }
   //printf("DEBUG: unpinning buffer finished\n");
@@ -363,7 +371,9 @@ load_and_pin_string(const void *buffer, void *esp){
     if ((buffer_iter + 32 >= esp) && (buffer_iter < PHYS_BASE) && (PHYS_BASE - STACK_SIZE <= vm_addr)){
       vm_grow_stack(vm_addr);
     }
+    lock_acquire(&thread_current()->sup_page_lock);
     vm_sup_page_load_and_pin(vm_sup_page_lookup(current_thread, vm_addr));
+    lock_release(&thread_current()->sup_page_lock);
     buffer_iter += 1;
   }
   //printf("DEBUG: loading and pinning string finished\n");
@@ -388,7 +398,9 @@ unpin_string(const void *buffer){
       continue;
     }
     last_vm_addr = vm_addr;
+    lock_acquire(&thread_current()->sup_page_lock);
     vm_sup_page_unpin(vm_sup_page_lookup(current_thread, vm_addr));
+    lock_release(&thread_current()->sup_page_lock);
     buffer_iter += 1;
   }
   //printf("DEBUG: unpinning string finished\n");
@@ -794,9 +806,12 @@ bool validate_mmap(int fd, void *vaddr, void *esp){
   }
 
   /* check if mapping overlaps previous mappings */
+  lock_acquire(&thread_current()->sup_page_lock);
   if (vm_sup_page_lookup(thread_current(), vaddr)){
+    lock_release(&thread_current()->sup_page_lock);
     return false; 
   }
+  lock_release(&thread_current()->sup_page_lock);
 
   /* check if it doesnt grow over stack */
   if (vaddr + PGSIZE >= esp)
@@ -808,8 +823,11 @@ bool validate_mmap(int fd, void *vaddr, void *esp){
 /* checks if vaddr is already mapped -> overlap
  returns false if maped address overlaps */
 bool validate_mmap_address(void *vaddr, void *esp){
+  lock_acquire(&thread_current()->sup_page_lock);
   if (vm_sup_page_lookup(thread_current(), vaddr) || !(is_user_vaddr(vaddr)))
+    lock_release(&thread_current()->sup_page_lock);
     return false; 
+  lock_release(&thread_current()->sup_page_lock);
 
   /* check if it doesnt grow over stack */
   if (vaddr + PGSIZE >= esp)
@@ -929,11 +947,14 @@ void syscall_munmap (mapid_t mapping){
   struct file *file = NULL;
 
   while(needed_pages > 0){
+    lock_acquire(&thread_current()->sup_page_lock);
     struct sup_page_entry *sup_page_entry = vm_sup_page_lookup (thread, vaddr);
     if (sup_page_entry == NULL){
+      lock_release(&thread_current()->sup_page_lock);
       printf("addr to delete does not exist\n");
       syscall_exit(-1);
     }
+    lock_release(&thread_current()->sup_page_lock);
     if (!vm_delete_mmap_entry(sup_page_entry)){
       printf("delete not possible\n");
       syscall_exit(-1);
