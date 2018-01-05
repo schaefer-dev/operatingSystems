@@ -552,7 +552,7 @@ vm_load_file(struct sup_page_entry *sup_page_entry){
     if (file_read_bytes != read_bytes){
       /* file not correctly read, free frame and indicate file not loaded */
       printf("DEBUG: file not correctly read in vm_load_file!\n");
-      vm_frame_free (page, fault_frame_addr);
+      vm_frame_free (page, sup_page_entry->vm_addr);
       return false;
     }
   }
