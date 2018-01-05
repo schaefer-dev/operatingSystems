@@ -68,6 +68,7 @@ vm_swap_page(void *phys_addr)
 {
   // TODO verify page reference? is_uservaddr?
   lock_acquire(&swap_lock);
+  ASSERT(phys_addr != NULL);
 
   block_sector_t free_sector = vm_swap_get_free();
 
@@ -93,8 +94,9 @@ void
 vm_swap_back(block_sector_t swap_sector, void *phys_addr)
 {
   // TODO verify page reference? is_uservaddr?
-  ASSERT(swap_sector < swap_size);
   lock_acquire(&swap_lock);
+  ASSERT(swap_sector < swap_size);
+  ASSERT(phys_addr != NULL);
 
   /* if the sector we are trying to swap back is free, something went horribly wrong! */
   if (bitmap_test(swap_free_bitmap, swap_sector) == true){
@@ -121,6 +123,8 @@ vm_swap_back(block_sector_t swap_sector, void *phys_addr)
 void 
 vm_swap_free(block_sector_t swap_sector)
 {
+  ASSERT(swap_sector < swap_size);
+
   lock_acquire(&swap_lock);
   if (bitmap_test(swap_free_bitmap, swap_sector) == true) {
       printf("trying to free a already free swap block, this should never happen!\n");

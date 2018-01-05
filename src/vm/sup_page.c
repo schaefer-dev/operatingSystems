@@ -70,17 +70,21 @@ vm_sup_page_hashmap_close(struct thread *thread)
 
 
 void
-vm_sup_page_load_and_pin (struct sup_page_entry *sup_page_entry){
+vm_sup_page_load_and_pin (struct sup_page_entry *sup_page_entry)
+{
+  lock_acquire(&sup_page_entry->page_lock);
   ASSERT(sup_page_entry != NULL);
   lock_acquire(&(sup_page_entry->pin_lock));
   sup_page_entry->pinned = true;
   lock_release(&(sup_page_entry->pin_lock));
   vm_sup_page_load(sup_page_entry);
+  lock_release(&sup_page_entry->page_lock);
 }
 
 
 void
-vm_sup_page_unpin (struct sup_page_entry *sup_page_entry){
+vm_sup_page_unpin (struct sup_page_entry *sup_page_entry)
+{
   ASSERT(sup_page_entry != NULL);
   lock_acquire(&(sup_page_entry->pin_lock));
   sup_page_entry->pinned = false;
@@ -93,6 +97,7 @@ vm_sup_page_unpin (struct sup_page_entry *sup_page_entry){
 void
 vm_sup_page_load (struct sup_page_entry *sup_page_entry){
   struct thread *current_thread = thread_current();
+  ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
   lock_acquire(&(sup_page_entry->pin_lock));
   sup_page_entry->pinned = true;
   lock_release(&(sup_page_entry->pin_lock));
@@ -146,6 +151,8 @@ vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED)
   struct sup_page_entry *lookup_sup_page_entry;
   lookup_sup_page_entry = hash_entry(hash, struct sup_page_entry, h_elem);
 
+  lock_acquire(&lookup_sup_page_entry->page_lock);
+
   ASSERT(lookup_sup_page_entry != NULL);
 
   switch (lookup_sup_page_entry->type)
@@ -172,12 +179,14 @@ vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED)
       {
         printf("Illegal PAGE_TYPE found!\n");
         lock_release(&frame_lock);
+        lock_release(&lookup_sup_page_entry->page_lock);
         syscall_exit(-1);
         break;
       }
 
     }
 
+  lock_release(&lookup_sup_page_entry->page_lock);
   lock_release(&frame_lock);
   free(lookup_sup_page_entry);
 }
@@ -328,6 +337,7 @@ vm_sup_page_allocate (void *vm_addr, bool writable){
   sup_page_entry->writable = writable;
   sup_page_entry->pinned = false;
   lock_init(&(sup_page_entry->pin_lock));
+  lock_init(&(sup_page_entry->page_lock));
 
   /* check if there is already the same hash contained in the hashmap, in which case we abort! */
   struct hash_elem *prev_elem;
@@ -349,6 +359,7 @@ vm_sup_page_allocate (void *vm_addr, bool writable){
     return false;
   }
 }
+
 
 /* function to allocate a supplemental page table entry for files incuding the file 
 and the offset within the file*/
@@ -378,6 +389,7 @@ vm_sup_page_file_allocate (void *vm_addr, struct file* file, off_t file_offset, 
   sup_page_entry->writable = writable;
   sup_page_entry->pinned = false;
   lock_init(&(sup_page_entry->pin_lock));
+  lock_init(&(sup_page_entry->page_lock));
 
   /* check if there is already the same hash contained in the hashmap, in which case we abort! */
   struct hash_elem *prev_elem;
@@ -425,6 +437,7 @@ vm_sup_page_mmap_allocate (void *vm_addr, struct file* file, off_t file_offset,
   sup_page_entry->writable = writable;
   sup_page_entry->pinned = false;
   lock_init(&(sup_page_entry->pin_lock));
+  lock_init(&(sup_page_entry->page_lock));
 
   /* check if there is already the same hash contained in the hashmap, in which case we abort! */
   struct hash_elem *prev_elem;
@@ -447,8 +460,8 @@ vm_sup_page_mmap_allocate (void *vm_addr, struct file* file, off_t file_offset,
 // TODO check this
 /* implementation of stack growth called by page fault handler */
 bool
-vm_grow_stack(void *fault_frame_addr){
-  
+vm_grow_stack(void *fault_frame_addr)
+{
   struct thread *thread = thread_current();
   struct sup_page_entry *before_sup_page_entry = vm_sup_page_lookup(thread, fault_frame_addr);
 
@@ -460,6 +473,8 @@ vm_grow_stack(void *fault_frame_addr){
     struct sup_page_entry *sup_page_entry = vm_sup_page_lookup(thread, fault_frame_addr);
     ASSERT(sup_page_entry != NULL);
 
+    lock_acquire(&sup_page_entry->page_lock);
+
     void *page = vm_frame_allocate(sup_page_entry, (PAL_ZERO | PAL_USER) , true);
 
     if (page == NULL){
@@ -468,6 +483,7 @@ vm_grow_stack(void *fault_frame_addr){
     }
 
     sup_page_entry->status = PAGE_STATUS_LOADED;
+    lock_release(&sup_page_entry->page_lock);
 
     return true;
 
@@ -479,7 +495,8 @@ vm_grow_stack(void *fault_frame_addr){
 //TODO: implement this function
 /* implementation of load from swap partition called by page fault handler */
 bool 
-vm_load_swap(void *fault_frame_addr){
+vm_load_swap(void *fault_frame_addr)
+{
   struct thread *thread = thread_current();
 
   struct sup_page_entry *sup_page = vm_sup_page_lookup(thread, fault_frame_addr);

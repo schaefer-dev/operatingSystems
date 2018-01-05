@@ -67,6 +67,9 @@ struct sup_page_entry
 
     /* synchronization of pinend value */
     struct lock pin_lock;
+
+    /* synchronization of struct fields */
+    struct lock page_lock;
     
     /* palloc flags which are used when the frame is created */
     enum palloc_flags pflags;

@@ -198,6 +198,8 @@ page_fault (struct intr_frame *f)
     }
 
   } else {
+      lock_acquire(&sup_page_entry->page_lock);
       vm_sup_page_load(sup_page_entry);
+      lock_release(&sup_page_entry->page_lock);
   }
 }

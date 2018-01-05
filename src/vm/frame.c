@@ -107,6 +107,7 @@ vm_frame_free (void *phys_addr, void *upage)
   //printf("DEBUG: frame free begin\n");
   ASSERT(lock_held_by_current_thread(&frame_lock));
   ASSERT(upage != NULL);
+  ASSERT(phys_addr != NULL);
   if(phys_addr == NULL)
     return;
 
@@ -172,13 +173,13 @@ vm_evict_page(enum palloc_flags pflags){
       // printf("DEBUG: iteration started\n");
       struct frame *iter_frame = list_entry (clock_iterator, struct frame, l_elem);
       // printf("DEBUG: list entry successfully created\n");
-      // if (iter_frame == NULL)
-        // printf("DEBUG: Iter Frame is NULL\n");
+       if (iter_frame == NULL)
+         printf("DEBUG: Iter Frame is NULL, this should never happen\n");
       struct sup_page_entry *iter_sup_page = iter_frame->sup_page_entry;
       // printf("DEBUG: sup page entry read from iter frame successfully\n");
       if (iter_sup_page == NULL){
         // TODO this should never happen? Search for the reason
-        //printf("DEBUG: Iter sup page is NULL -> skipping\n");
+        printf("DEBUG: Iter sup page of frame is NULL -> skipping in eviction\n");
         // page was accessed -> look at next frame if accessed
         vm_evict_page_next_iterator();
         continue;
