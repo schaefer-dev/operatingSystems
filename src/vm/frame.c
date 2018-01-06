@@ -59,6 +59,7 @@ void*
 vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pflags, bool writable)
 {
   ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
+  ASSERT(!lock_held_by_current_thread(&frame_lock));
   lock_acquire (&frame_lock);
 
   void *page = palloc_get_page(PAL_USER | pflags);
@@ -91,6 +92,7 @@ vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pfla
 void 
 vm_frame_free (void *phys_addr, void *upage)
 {
+  ASSERT(!lock_held_by_current_thread(&frame_lock));
   lock_acquire(&frame_lock);
   ASSERT(upage != NULL);
   ASSERT(phys_addr != NULL);
@@ -104,6 +106,7 @@ vm_frame_free (void *phys_addr, void *upage)
   if (found_frame == NULL) {
     // the table was not found, this should be impossible!
     printf("frame at %p not found in Frame Table!\n", phys_addr);
+    lock_release(&frame_lock);
     return;
   }
 

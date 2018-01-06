@@ -76,6 +76,7 @@ vm_grow_stack(void *fault_frame_addr)
 
   struct sup_page_entry *sup_page_entry =  vm_sup_page_allocate(fault_frame_addr, true);
   ASSERT(!lock_held_by_current_thread(&sup_page_entry->page_lock));
+  ASSERT(!lock_held_by_current_thread(&frame_lock));
   lock_acquire(&sup_page_entry->page_lock);
   sup_page_entry->pinned = true;
 
@@ -188,6 +189,7 @@ void
 vm_sup_page_load (struct sup_page_entry *sup_page_entry){
   ASSERT(((int)(sup_page_entry->vm_addr) % PGSIZE) == 0);
   ASSERT(!lock_held_by_current_thread(&sup_page_entry->page_lock));
+  ASSERT(!lock_held_by_current_thread(&frame_lock));
   lock_acquire(&sup_page_entry->page_lock);
   sup_page_entry->pinned = true;
 
@@ -301,6 +303,7 @@ void
 vm_sup_page_unpin (struct sup_page_entry *sup_page_entry)
 {
   ASSERT(!lock_held_by_current_thread(&sup_page_entry->page_lock));
+  ASSERT(!lock_held_by_current_thread(&frame_lock));
   lock_acquire(&sup_page_entry->page_lock);
   sup_page_entry->pinned = false;
   lock_release(&sup_page_entry->page_lock);
@@ -327,6 +330,7 @@ vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED)
 
   //printf("DEBUG: sup_page_free destroys vaddr: %p\n", lookup_sup_page_entry->vm_addr);
   ASSERT(!lock_held_by_current_thread(&lookup_sup_page_entry->page_lock));
+  ASSERT(!lock_held_by_current_thread(&frame_lock));
   lock_acquire(&lookup_sup_page_entry->page_lock);
   switch (lookup_sup_page_entry->type)
     {
@@ -503,6 +507,7 @@ bool vm_write_mmap_back(struct sup_page_entry *sup_page_entry){
 /* removes mmap entry from hashtable and frees! */
 bool vm_delete_mmap_entry(struct sup_page_entry *sup_page_entry){
   ASSERT(!lock_held_by_current_thread(&sup_page_entry->page_lock));
+  ASSERT(!lock_held_by_current_thread(&frame_lock));
   lock_acquire(&sup_page_entry->page_lock);
 
   struct thread *thread = sup_page_entry->thread;
