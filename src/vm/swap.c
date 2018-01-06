@@ -32,6 +32,7 @@ vm_swap_init(void)
 
     /* swap size = how many pages can be contained in the swap-block */
     swap_size = (block_size(swap) / SECTORS_FOR_PAGE);
+
     swap_free_bitmap = bitmap_create(swap_size);
     bitmap_set_all (swap_free_bitmap, true);
     lock_init(&swap_lock);

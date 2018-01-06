@@ -67,6 +67,7 @@ vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pfla
   }
 
   struct frame *frame = malloc(sizeof(struct frame));
+
   sup_page_entry->phys_addr = page;
   frame->phys_addr = page;
   frame->sup_page_entry = sup_page_entry;
@@ -112,7 +113,7 @@ vm_frame_free (void *phys_addr, void *upage)
   list_remove (&found_frame->l_elem);
   palloc_free_page(phys_addr);
   // TODO is uninstall_page correct here? Maybe better put elsewhere
-  //uninstall_page(upage);
+  uninstall_page(upage);
   free(found_frame);
   lock_release(&frame_lock);
 
@@ -150,21 +151,9 @@ vm_evict_page(enum palloc_flags pflags){
      (could be more than iteration) */
   while (true){
       struct frame *iter_frame = list_entry (clock_iterator, struct frame, l_elem);
-       if (iter_frame == NULL)
-         printf("DEBUG: Iter Frame is NULL, this should never happen\n");
       struct sup_page_entry *iter_sup_page = iter_frame->sup_page_entry;
 
-      if (iter_sup_page == NULL){
-        // TODO this should never happen? Search for the reason
-        //printf("DEBUG: Iter sup page of frame is NULL at phys_addr: %p -> skipping in eviction\n", iter_frame->phys_addr);
-        // page was accessed -> look at next frame if accessed
-        vm_evict_page_next_iterator();
-        continue;
-      }
-
       /* if sup page is pinned look at next page */
-      /* TODO check why i cant acquire page lock here as it should be different sup page 
-         than the one i am currently allocating for */
       if (iter_sup_page->pinned == true){
         vm_evict_page_next_iterator();
         continue;
