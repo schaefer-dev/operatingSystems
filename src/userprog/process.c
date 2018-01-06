@@ -344,6 +344,7 @@ load (const char *file_name, void (**eip) (void), void **esp, char* argument_buf
 
   /* Open executable file. */
   // TODO think about if this lock can be safely removed with lazy loading
+  ASSERT(!lock_held_by_current_thread(&lock_filesystem));
   lock_acquire(&lock_filesystem);
   file = filesys_open (file_name);
   if (file == NULL) 

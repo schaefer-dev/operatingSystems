@@ -270,6 +270,7 @@ vm_load_file(struct sup_page_entry *sup_page_entry){
   }
 
   if (read_bytes != 0){
+    ASSERT(!lock_held_by_current_thread(&lock_filesystem));
     lock_acquire(&lock_filesystem);
     file_seek(file, file_offset);
     off_t file_read_bytes = file_read (file, page, read_bytes);
@@ -496,6 +497,7 @@ bool vm_write_mmap_back(struct sup_page_entry *sup_page_entry){
   off_t file_offset = sup_page_entry->file_offset;
   off_t read_bytes = sup_page_entry->read_bytes;
 
+  ASSERT(!lock_held_by_current_thread(&lock_filesystem));
   lock_acquire(&lock_filesystem);
   off_t written_bytes = file_write_at(file, vaddr, read_bytes, file_offset);
   lock_release(&lock_filesystem);

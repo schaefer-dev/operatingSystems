@@ -318,6 +318,7 @@ thread_exit (void)
 #ifdef USERPROG
   process_exit ();
   if (current_thread->executable != NULL){
+    ASSERT(!lock_held_by_current_thread(&lock_filesystem));
     lock_acquire(&lock_filesystem);
     file_close((current_thread->executable));
     lock_release(&lock_filesystem);

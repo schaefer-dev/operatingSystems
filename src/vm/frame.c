@@ -212,6 +212,8 @@ vm_evict_page(enum palloc_flags pflags){
           }
 
         }
+
+        iter_sup_page->phys_addr = NULL;
         lock_release(&iter_sup_page->page_lock);
         /* frame is current itertion move iterator one step */
         vm_evict_page_next_iterator();
