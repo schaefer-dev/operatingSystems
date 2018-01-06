@@ -635,7 +635,7 @@ setup_stack (void **esp, char *argument_buffer, int argcount)
   struct sup_page_entry *sup_page_entry = vm_sup_page_lookup(thread_current(), vaddr);
   sup_page_entry->pinned = true;
   thread_current()->stack_page = sup_page_entry;
-  printf("DEBUG: setup stack at vaddr: %p and phys_addr: %p\n", sup_page_entry->vm_addr, sup_page_entry->phys_addr);
+  //printf("DEBUG: setup stack at vaddr: %p and phys_addr: %p\n", sup_page_entry->vm_addr, sup_page_entry->phys_addr);
 
   if (success) 
     {

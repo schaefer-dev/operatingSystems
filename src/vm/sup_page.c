@@ -305,7 +305,7 @@ vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED)
   struct sup_page_entry *lookup_sup_page_entry;
   lookup_sup_page_entry = hash_entry(hash, struct sup_page_entry, h_elem);
 
-  printf("DEBUG: sup_page_free destroys vaddr: %p\n", lookup_sup_page_entry->vm_addr);
+  //printf("DEBUG: sup_page_free destroys vaddr: %p\n", lookup_sup_page_entry->vm_addr);
 
   switch (lookup_sup_page_entry->type)
     {

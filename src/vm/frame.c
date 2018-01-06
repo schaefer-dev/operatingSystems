@@ -94,7 +94,7 @@ vm_frame_free (void *phys_addr, void *upage)
   ASSERT(upage != NULL);
   ASSERT(phys_addr != NULL);
   // DEBUG START
-  printf("DEBUG: vm_frame_free with upage: %p and phys_addr: %p\n", upage, phys_addr);
+  //printf("DEBUG: vm_frame_free with upage: %p and phys_addr: %p\n", upage, phys_addr);
   // DEBUG END
 
 
@@ -148,11 +148,11 @@ vm_evict_page(enum palloc_flags pflags){
   ASSERT (lock_held_by_current_thread(&frame_lock));
   ASSERT (!list_empty(&frame_list));
 
-  printf("DEBUG: Status of stack page: %i\n",thread_current()->stack_page->status);
+  //printf("DEBUG: Status of stack page: %i\n",thread_current()->stack_page->status);
 
   char *stack_vaddr = (char *) 0xbffffff4;
   void *stack_phys_addr = pagedir_get_page(thread_current()->pagedir, stack_vaddr);
-  printf("DEBUG Test name directly from vaddr: %s and in directory at %p\n", stack_vaddr, stack_phys_addr);
+  //printf("DEBUG Test name directly from vaddr: %s and in directory at %p\n", stack_vaddr, stack_phys_addr);
 
   if (clock_iterator == NULL)
     clock_iterator = list_begin (&frame_list);
@@ -178,7 +178,7 @@ vm_evict_page(enum palloc_flags pflags){
          pagedir_set_accessed(page_thread->pagedir, iter_sup_page->vm_addr, false);
       } else {
 
-        printf("DEBUG: evicting page with vaddr: %p and phys_addr %p\n", iter_sup_page->vm_addr, iter_sup_page->phys_addr);
+        //printf("DEBUG: evicting page with vaddr: %p and phys_addr %p\n", iter_sup_page->vm_addr, iter_sup_page->phys_addr);
 
         switch (iter_sup_page->type)
         {

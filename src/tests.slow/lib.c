@@ -19,10 +19,10 @@ vmsg (const char *format, va_list args, const char *suffix)
   static char buf[1024];
 
   // DEBUG START
-  snprintf (buf, 20, "(%p) ", test_name);
-  write (STDOUT_FILENO, buf, strlen (buf));
-
+  //snprintf (buf, 20, "(%p) ", test_name);
+  //write (STDOUT_FILENO, buf, strlen (buf));
   // DEBUG END
+
   snprintf (buf, sizeof buf, "(%s) ", test_name);
   vsnprintf (buf + strlen (buf), sizeof buf - strlen (buf), format, args);
   strlcpy (buf + strlen (buf), suffix, sizeof buf - strlen (buf));
