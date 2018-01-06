@@ -190,5 +190,7 @@ page_fault (struct intr_frame *f)
 
   } else {
       vm_sup_page_load(sup_page_entry);
+      /* unpin after loading finished */
+      sup_page_entry->pinned = false;
   }
 }

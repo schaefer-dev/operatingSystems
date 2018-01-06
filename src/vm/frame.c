@@ -89,6 +89,7 @@ vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pfla
 void 
 vm_frame_free (void *phys_addr, void *upage)
 {
+  lock_acquire(&frame_lock);
   ASSERT(upage != NULL);
   ASSERT(phys_addr != NULL);
 
@@ -111,8 +112,9 @@ vm_frame_free (void *phys_addr, void *upage)
   list_remove (&found_frame->l_elem);
   palloc_free_page(phys_addr);
   // TODO is uninstall_page correct here? Maybe better put elsewhere
-  uninstall_page(upage);
+  //uninstall_page(upage);
   free(found_frame);
+  lock_release(&frame_lock);
 
   return;
 }

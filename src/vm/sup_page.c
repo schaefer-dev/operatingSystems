@@ -82,6 +82,7 @@ vm_grow_stack(void *fault_frame_addr)
     return false;
   }
 
+  install_page(sup_page_entry->vm_addr, sup_page_entry->phys_addr, sup_page_entry->writable);
   sup_page_entry->status = PAGE_STATUS_LOADED;
   return true;
 }
@@ -196,7 +197,8 @@ vm_sup_page_load (struct sup_page_entry *sup_page_entry){
         }
     }
 
-  sup_page_entry->pinned = false;
+  sup_page_entry->status = PAGE_STATUS_LOADED;
+  install_page(sup_page_entry->vm_addr, sup_page_entry->phys_addr, sup_page_entry->writable);
 }
 
 
@@ -256,7 +258,6 @@ vm_load_file(struct sup_page_entry *sup_page_entry){
   }
 
   /*indicate that frame is now loaded */
-  sup_page_entry->status = PAGE_STATUS_LOADED;
   sup_page_entry->phys_addr = page;
 
   return true;
@@ -290,8 +291,6 @@ vm_sup_page_hashmap_close(struct thread *thread)
 void
 vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED)
 {
-  struct thread *current_thread = thread_current();
-
   struct sup_page_entry *lookup_sup_page_entry;
   lookup_sup_page_entry = hash_entry(hash, struct sup_page_entry, h_elem);
 
