@@ -311,6 +311,10 @@ thread_exit (void)
 
   struct thread *current_thread = thread_current();
 
+  /* free child_process ressources of this process when possible 
+     and notify all childs that parent has terminated */
+  thread_terminate_child_setup();
+
 #ifdef USERPROG
   process_exit ();
   if (current_thread->executable != NULL){
@@ -323,9 +327,6 @@ thread_exit (void)
   intr_disable ();
 
 
-  /* free child_process ressources of this process when possible 
-     and notify all childs that parent has terminated */
-  thread_terminate_child_setup();
 
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us

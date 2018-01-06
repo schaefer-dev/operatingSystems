@@ -5,6 +5,7 @@
 #include "threads/vaddr.h"
 #include "threads/palloc.h"
 #include "threads/malloc.h"
+#include "threads/interrupt.h"
 #include "filesys/file.h"
 #include "vm/sup_page.h"
 #include "vm/frame.h"
@@ -74,13 +75,18 @@ vm_grow_stack(void *fault_frame_addr)
     return true;
 
   struct sup_page_entry *sup_page_entry =  vm_sup_page_allocate(fault_frame_addr, true);
+  sup_page_entry->pinned = true;
 
   void *page = vm_frame_allocate(sup_page_entry, (PAL_ZERO | PAL_USER) , true);
+  sup_page_entry->pinned = true;
 
   if (page == NULL){
     printf("stack growth could not allocate page!\n");
     return false;
   }
+
+  if (intr_context())
+    sup_page_entry->pinned = false;
 
   install_page(sup_page_entry->vm_addr, sup_page_entry->phys_addr, sup_page_entry->writable);
   sup_page_entry->status = PAGE_STATUS_LOADED;
@@ -169,7 +175,10 @@ vm_sup_page_mmap_allocate (void *vm_addr, struct file* file, off_t file_offset,
 // try to lock sup_page_lock during sup_page_load
 void
 vm_sup_page_load (struct sup_page_entry *sup_page_entry){
+  ASSERT(((int)(sup_page_entry->vm_addr) % PGSIZE) == 0);
   sup_page_entry->pinned = true;
+
+  //printf("DEBUG loading sup_page at vaddr: %p\n", sup_page_entry->vm_addr);
 
   switch (sup_page_entry->status)
     {
@@ -282,7 +291,9 @@ vm_sup_page_unpin (struct sup_page_entry *sup_page_entry)
 void
 vm_sup_page_hashmap_close(struct thread *thread)
 {
+  //printf("DEBUG: Destroying sup_pages start\n");
   hash_destroy(&(thread->sup_page_hashmap), vm_sup_page_free);
+  //printf("DEBUG: Destroying sup_pages end\n");
 }
 
 
@@ -293,6 +304,8 @@ vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED)
 {
   struct sup_page_entry *lookup_sup_page_entry;
   lookup_sup_page_entry = hash_entry(hash, struct sup_page_entry, h_elem);
+
+  printf("DEBUG: sup_page_free destroys vaddr: %p\n", lookup_sup_page_entry->vm_addr);
 
   switch (lookup_sup_page_entry->type)
     {

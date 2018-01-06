@@ -122,6 +122,8 @@ struct thread
     /* Counter to give every file in mmap a unique id */
     mapid_t current_mmapid;
 
+    struct sup_page_entry *stack_page;
+
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */

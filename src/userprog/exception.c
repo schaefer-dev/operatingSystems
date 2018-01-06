@@ -179,12 +179,8 @@ page_fault (struct intr_frame *f)
 
   if (sup_page_entry == NULL){
     if ((fault_addr + 32 >= stack_pointer) && (fault_addr < PHYS_BASE) && (PHYS_BASE - STACK_SIZE <= fault_frame_addr)){
-      // TODO stack_pointer is null right now
-      //if (stack_pointer == NULL)
-        //printf("DEBUG: stack pointer NULL for grow_stack\n");
       vm_grow_stack(fault_frame_addr);
     } else {
-      //printf("DEBUG: stack growth fail\n");
       syscall_exit(-1);
     }
 

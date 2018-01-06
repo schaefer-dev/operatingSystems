@@ -628,18 +628,15 @@ bool faulty_esp(uintptr_t esp, uintptr_t min_addr){
 static bool
 setup_stack (void **esp, char *argument_buffer, int argcount) 
 {
-  uint8_t *kpage;
-  bool success = false;
-
-  struct thread *current_thread = thread_current();
   void *vaddr = (uint8_t *) PHYS_BASE - PGSIZE;
 
-  success = vm_sup_page_allocate(vaddr, true);
-  struct sup_page_entry *sup_page_entry = vm_sup_page_lookup(current_thread, vaddr);
-  kpage = vm_frame_allocate (sup_page_entry, (PAL_USER | PAL_ZERO), true);
-  sup_page_entry->phys_addr = kpage;
-  sup_page_entry->status = PAGE_STATUS_LOADED;
-  sup_page_entry->type = PAGE_TYPE_STACK;
+  bool success = vm_grow_stack(vaddr);
+
+  struct sup_page_entry *sup_page_entry = vm_sup_page_lookup(thread_current(), vaddr);
+  sup_page_entry->pinned = true;
+  thread_current()->stack_page = sup_page_entry;
+  printf("DEBUG: setup stack at vaddr: %p and phys_addr: %p\n", sup_page_entry->vm_addr, sup_page_entry->phys_addr);
+
   if (success) 
     {
       *esp = PHYS_BASE;

@@ -17,15 +17,21 @@ test_main (void)
   struct arc4 arc4;
   size_t i;
 
+  msg("buffer at: %p", buf);
+  msg("test_name at: %p", test_name);
+
   /* Initialize to 0x5a. */
   msg ("initialize");
   memset (buf, 0x5a, sizeof buf);
 
   /* Check that it's all 0x5a. */
   msg ("read pass");
-  for (i = 0; i < SIZE; i++)
+  for (i = 0; i < SIZE; i++){
+    if (i % 5048 == 0)
+       msg ("debug at %zu", i);
     if (buf[i] != 0x5a)
       fail ("byte %zu != 0x5a", i);
+  }
 
   /* Encrypt zeros. */
   msg ("read/modify/write pass one");
