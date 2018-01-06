@@ -58,6 +58,7 @@ vm_frame_init () {
 void*
 vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pflags, bool writable)
 {
+  ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
   lock_acquire (&frame_lock);
 
   void *page = palloc_get_page(PAL_USER | pflags);
@@ -164,7 +165,10 @@ vm_evict_page(enum palloc_flags pflags){
       struct sup_page_entry *iter_sup_page = iter_frame->sup_page_entry;
 
       /* if sup page is pinned look at next page */
+      ASSERT(!lock_held_by_current_thread(&sup_page_entry->page_lock));
+      lock_acquire(&sup_page_entry->page_lock);
       if (iter_sup_page->pinned == true){
+        lock_release(&sup_page_entry->page_lock);
         vm_evict_page_next_iterator();
         continue;
       }
@@ -176,6 +180,7 @@ vm_evict_page(enum palloc_flags pflags){
          /* page was accessed since previous iteration -> set accessed bit to 0 
             and don't evict this page in this iteration */
          pagedir_set_accessed(page_thread->pagedir, iter_sup_page->vm_addr, false);
+         lock_release(&sup_page_entry->page_lock);
       } else {
 
         //printf("DEBUG: evicting page with vaddr: %p and phys_addr %p\n", iter_sup_page->vm_addr, iter_sup_page->phys_addr);
@@ -204,6 +209,7 @@ vm_evict_page(enum palloc_flags pflags){
           }
 
         }
+        lock_release(&sup_page_entry->page_lock);
         /* frame is current itertion move iterator one step */
         vm_evict_page_next_iterator();
 
@@ -231,6 +237,7 @@ vm_evict_page(enum palloc_flags pflags){
 /* writes file content to swap if necessary(page is dirty) and sets the status
   based on wheter it was dirty or not */
 void vm_evict_file(struct sup_page_entry *sup_page_entry, struct frame *frame){
+  ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
   ASSERT(sup_page_entry != NULL);
   
   struct thread *thread = sup_page_entry->thread;
@@ -248,6 +255,7 @@ void vm_evict_file(struct sup_page_entry *sup_page_entry, struct frame *frame){
 
 /* writes page content to swap and sets the status */
 void vm_evict_stack(struct sup_page_entry *sup_page_entry, struct frame *frame){
+  ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
   ASSERT(sup_page_entry != NULL);
   ASSERT (lock_held_by_current_thread(&frame_lock));
 
@@ -259,6 +267,7 @@ void vm_evict_stack(struct sup_page_entry *sup_page_entry, struct frame *frame){
 /* writes mmap file content back to file if necessary(page is dirty) and sets 
   the status to not loaded b.c. we always load from file */
 void vm_evict_mmap(struct sup_page_entry *sup_page_entry){
+  ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
   ASSERT(sup_page_entry != NULL);
   ASSERT (lock_held_by_current_thread(&frame_lock));
 
