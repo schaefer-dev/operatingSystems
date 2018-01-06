@@ -210,7 +210,7 @@ vm_sup_page_load (struct sup_page_entry *sup_page_entry){
       case PAGE_STATUS_LOADED:
         {
           /* page already loaded! */
-          return;
+          break;
         }
       default:
         {
@@ -326,8 +326,8 @@ vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED)
   lookup_sup_page_entry = hash_entry(hash, struct sup_page_entry, h_elem);
 
   //printf("DEBUG: sup_page_free destroys vaddr: %p\n", lookup_sup_page_entry->vm_addr);
-  ASSERT(!lock_held_by_current_thread(&sup_page_entry->page_lock));
-  lock_acquire(&sup_page_entry->page_lock);
+  ASSERT(!lock_held_by_current_thread(&lookup_sup_page_entry->page_lock));
+  lock_acquire(&lookup_sup_page_entry->page_lock);
   switch (lookup_sup_page_entry->type)
     {
       case PAGE_TYPE_MMAP:

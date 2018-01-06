@@ -165,10 +165,10 @@ vm_evict_page(enum palloc_flags pflags){
       struct sup_page_entry *iter_sup_page = iter_frame->sup_page_entry;
 
       /* if sup page is pinned look at next page */
-      ASSERT(!lock_held_by_current_thread(&sup_page_entry->page_lock));
-      lock_acquire(&sup_page_entry->page_lock);
+      ASSERT(!lock_held_by_current_thread(&iter_sup_page->page_lock));
+      lock_acquire(&iter_sup_page->page_lock);
       if (iter_sup_page->pinned == true){
-        lock_release(&sup_page_entry->page_lock);
+        lock_release(&iter_sup_page->page_lock);
         vm_evict_page_next_iterator();
         continue;
       }
@@ -180,7 +180,7 @@ vm_evict_page(enum palloc_flags pflags){
          /* page was accessed since previous iteration -> set accessed bit to 0 
             and don't evict this page in this iteration */
          pagedir_set_accessed(page_thread->pagedir, iter_sup_page->vm_addr, false);
-         lock_release(&sup_page_entry->page_lock);
+         lock_release(&iter_sup_page->page_lock);
       } else {
 
         //printf("DEBUG: evicting page with vaddr: %p and phys_addr %p\n", iter_sup_page->vm_addr, iter_sup_page->phys_addr);
@@ -209,7 +209,7 @@ vm_evict_page(enum palloc_flags pflags){
           }
 
         }
-        lock_release(&sup_page_entry->page_lock);
+        lock_release(&iter_sup_page->page_lock);
         /* frame is current itertion move iterator one step */
         vm_evict_page_next_iterator();
 
