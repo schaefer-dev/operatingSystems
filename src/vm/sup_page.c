@@ -358,7 +358,9 @@ vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED)
       }
 
     }
+  //printf("DEBUG: free sup page start \n");
   free(lookup_sup_page_entry);
+  //printf("DEBUG: free sup page end \n");
 }
 
 

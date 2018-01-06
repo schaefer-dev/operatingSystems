@@ -311,9 +311,6 @@ thread_exit (void)
 
   struct thread *current_thread = thread_current();
 
-  /* free child_process ressources of this process when possible 
-     and notify all childs that parent has terminated */
-  thread_terminate_child_setup();
 
 #ifdef USERPROG
   process_exit ();
@@ -327,6 +324,9 @@ thread_exit (void)
 
   intr_disable ();
 
+  /* free child_process ressources of this process when possible 
+     and notify all childs that parent has terminated */
+  thread_terminate_child_setup();
 
 
   /* Remove thread from all threads list, set our status to dying,
@@ -736,7 +736,9 @@ void thread_terminate_child_setup(){
 
       if (f->terminated){
         lock_release(&f->child_process_lock);
+        //printf("DEBUG: free child in terminate_child_setup start\n");
         free(f);
+        //printf("DEBUG: free child in terminate_child_setup end\n");
       }else{
         f->parent=-1;
         lock_release(&f->child_process_lock);
@@ -812,17 +814,20 @@ mmap_hashmap_free(struct hash_elem *hash, void *aux UNUSED)
 {
   struct mmap_entry *lookup_mmap_entry;
   lookup_mmap_entry = hash_entry(hash, struct mmap_entry, h_elem);
+  //printf("DEBUG: reference to lookup %p\n", lookup_mmap_entry);
+  //printf("DEBUG: freeing mmap entry start\n");
   free(lookup_mmap_entry);
+  //printf("DEBUG: freeing mmap entry end\n");
 }
 
 /* close the entire hashmap and free all ressources contained in it */
 void
 mmap_hashmap_close(struct thread *thread)
 {
+  return;
   hash_destroy(&(thread->mmap_hashmap), mmap_hashmap_free);
 }
 
-
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);

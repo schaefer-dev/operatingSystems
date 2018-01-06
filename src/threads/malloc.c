@@ -147,7 +147,9 @@ malloc (size_t size)
 
   /* Get a block from free list and return it. */
   b = list_entry (list_pop_front (&d->free_list), struct block, free_elem);
+  //printf("DEBUG: block in malloc start\n");
   a = block_to_arena (b);
+  //printf("DEBUG: block in malloc end\n");
   a->free_cnt--;
   lock_release (&d->lock);
   return b;
@@ -179,7 +181,9 @@ static size_t
 block_size (void *block) 
 {
   struct block *b = block;
+  //printf("DEBUG: block_to_arena in block_size start\n");
   struct arena *a = block_to_arena (b);
+  //printf("DEBUG: block_to_arena in block_size end\n");
   struct desc *d = a->desc;
 
   return d != NULL ? d->block_size : PGSIZE * a->free_cnt - pg_ofs (block);
@@ -221,7 +225,9 @@ free (void *p)
   if (p != NULL)
     {
       struct block *b = p;
+      //printf("DEBUG: block_to_arena in free start\n");
       struct arena *a = block_to_arena (b);
+      //printf("DEBUG: block_to_arena in free end\n");
       struct desc *d = a->desc;
       
       if (d != NULL) 
@@ -262,7 +268,7 @@ free (void *p)
         }
     }
 }
-
+
 /* Returns the arena that block B is inside. */
 static struct arena *
 block_to_arena (struct block *b)

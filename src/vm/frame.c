@@ -118,11 +118,15 @@ vm_frame_free (void *phys_addr, void *upage)
     }
   }
 
+  printf("DEBUG: removing frame in vm_frame_free start at %p\n", found_frame->phys_addr);
   list_remove (&found_frame->l_elem);
+  printf("DEBUG: removing frame in vm_frame_free end\n");
   palloc_free_page(phys_addr);
   // TODO is uninstall_page correct here? Maybe better put elsewhere
   uninstall_page(upage);
+  //printf("DEBUG: Free found_frame in vm_frame_free start\n");
   free(found_frame);
+  //printf("DEBUG: Free found_frame in vm_frame_free end\n");
   lock_release(&frame_lock);
 
   return;
@@ -152,12 +156,6 @@ vm_evict_page(enum palloc_flags pflags){
   ASSERT (lock_held_by_current_thread(&frame_lock));
   ASSERT (!list_empty(&frame_list));
 
-  //printf("DEBUG: Status of stack page: %i\n",thread_current()->stack_page->status);
-
-  char *stack_vaddr = (char *) 0xbffffff4;
-  void *stack_phys_addr = pagedir_get_page(thread_current()->pagedir, stack_vaddr);
-  //printf("DEBUG Test name directly from vaddr: %s and in directory at %p\n", stack_vaddr, stack_phys_addr);
-
   if (clock_iterator == NULL)
     clock_iterator = list_begin (&frame_list);
 
@@ -166,6 +164,9 @@ vm_evict_page(enum palloc_flags pflags){
   while (true){
       struct frame *iter_frame = list_entry (clock_iterator, struct frame, l_elem);
       struct sup_page_entry *iter_sup_page = iter_frame->sup_page_entry;
+
+      ASSERT(iter_frame != NULL);
+      ASSERT(iter_sup_page != NULL);
 
       /* if sup page is pinned look at next page */
       ASSERT(!lock_held_by_current_thread(&iter_sup_page->page_lock));
@@ -226,7 +227,10 @@ vm_evict_page(enum palloc_flags pflags){
         palloc_free_page(iter_frame->phys_addr);
 
         pagedir_clear_page(page_thread->pagedir, iter_sup_page->vm_addr);
+
+        //printf("DEBUG: freeing iter_frame in evict start\n");
         free(iter_frame);
+        //printf("DEBUG: freeing iter_frame in evict end\n");
 
         void* phys_addr = palloc_get_page(pflags | PAL_ZERO);
 

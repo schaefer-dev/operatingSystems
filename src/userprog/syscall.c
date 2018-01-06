@@ -72,6 +72,8 @@ syscall_handler (struct intr_frame *f UNUSED)
 
   validate_pointer(esp, esp);
 
+  thread_current()->syscall_esp = esp;
+
 
   /* syscall type int is stored at adress esp */
   int32_t syscall_type = *((int*)esp);
@@ -411,6 +413,7 @@ syscall_exit(const int exit_type){
   struct child_process* terminating_child = terminating_thread->child_process;
 
   if (terminating_child != NULL){
+    ASSERT(!lock_held_by_current_thread(&terminating_child->child_process_lock));
     lock_acquire(&terminating_child->child_process_lock);
     if (terminating_child->parent != -1){
       /* parent is still running -> has to store information */
@@ -562,6 +565,7 @@ syscall_exec(const char *cmd_line, void *esp){
     return -1;
   }
 
+  ASSERT(!lock_held_by_current_thread(&current_child->child_process_lock));
   lock_acquire(&current_child->child_process_lock);
 
   while(current_child->successfully_loaded == NOT_LOADED){
@@ -909,6 +913,7 @@ void syscall_munmap (mapid_t mapping){
   /* get mmap entry from hash map and check if one is found */
   struct mmap_entry *mmap_entry = mmap_entry_lookup (thread, mapping);
   if (mmap_entry == NULL){
+    printf("mmap entry null in munmap\n");
     syscall_exit(-1);
   }
   

@@ -117,6 +117,7 @@ start_process (void *file_name_)
   struct thread *child_thread = thread_current();
   struct child_process *child_process = child_thread->child_process;
 
+  ASSERT(!lock_held_by_current_thread(&child_process->child_process_lock));
   lock_acquire(&child_process->child_process_lock);
 
   /* set load value of child_process after load is finished */
@@ -170,6 +171,7 @@ process_wait (pid_t child_tid)
 
   if (child != NULL){
     /* matching child was found */
+    ASSERT(!lock_held_by_current_thread(&child->child_process_lock));
     lock_acquire(&child->child_process_lock);
     
     /* check if this child_tid has already been waited for */
@@ -635,7 +637,6 @@ setup_stack (void **esp, char *argument_buffer, int argcount)
 
   struct sup_page_entry *sup_page_entry = vm_sup_page_lookup(thread_current(), vaddr);
   sup_page_entry->pinned = true;
-  thread_current()->stack_page = sup_page_entry;
   //printf("DEBUG: setup stack at vaddr: %p and phys_addr: %p\n", sup_page_entry->vm_addr, sup_page_entry->phys_addr);
 
   if (success) 
@@ -724,6 +725,7 @@ uninstall_page (void* upage)
 struct child_process*
 get_child(pid_t pid){
   struct thread *current_thread = thread_current();
+  ASSERT(!lock_held_by_current_thread(&current_thread->child_list_lock));
   lock_acquire(&current_thread->child_list_lock);
   struct list *child_list = &(current_thread->child_list);
   if (list_empty (child_list)){
