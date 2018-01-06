@@ -159,10 +159,6 @@ page_fault (struct intr_frame *f)
   /* notify parent about syscall */
   // TODO check if user and page not user or if pointer null or if writing to read only page
 
-  struct thread *thread = thread_current();
-
-  uint32_t *pagedir = thread->pagedir;
-
   /* faulting at NULL outside user virtual adress space or writing to read only page */
   if ((fault_addr == NULL) || (!not_present) || (!is_user_vaddr(fault_addr))){
     syscall_exit(-1);
@@ -179,27 +175,20 @@ page_fault (struct intr_frame *f)
     stack_pointer = NULL;
   }
 
-  struct sup_page_entry *sup_page_entry = vm_sup_page_lookup (thread, fault_frame_addr);
-  //printf("DEBUG: sup_page found at vaddr: %p\n", fault_frame_addr);
-  //printf("DEBUG: syscall esp = %p\n", stack_pointer);
-
-
-
+  struct sup_page_entry *sup_page_entry = vm_sup_page_lookup (thread_current(), fault_frame_addr);
 
   if (sup_page_entry == NULL){
-    //printf("DEBUG: sup_page null!\n");
     if ((fault_addr + 32 >= stack_pointer) && (fault_addr < PHYS_BASE) && (PHYS_BASE - STACK_SIZE <= fault_frame_addr)){
       // TODO stack_pointer is null right now
       //if (stack_pointer == NULL)
         //printf("DEBUG: stack pointer NULL for grow_stack\n");
       vm_grow_stack(fault_frame_addr);
     } else {
+      //printf("DEBUG: stack growth fail\n");
       syscall_exit(-1);
     }
 
   } else {
-      lock_acquire(&sup_page_entry->page_lock);
       vm_sup_page_load(sup_page_entry);
-      lock_release(&sup_page_entry->page_lock);
   }
 }

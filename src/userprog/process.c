@@ -585,13 +585,10 @@ static bool
 load_segment (struct file *file, off_t ofs, uint8_t *upage,
               uint32_t read_bytes, uint32_t zero_bytes, bool writable) 
 {
-  //printf("DEBUG: load segment started with upage %p\n", upage);
   ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
   ASSERT (pg_ofs (upage) == 0);
   ASSERT (ofs % PGSIZE == 0);
-  //printf("DEBUG: Load segment called!\n");
-  struct thread *current_thread = thread_current();
-  ASSERT(vm_sup_page_lookup(current_thread, upage) == NULL);
+  ASSERT(vm_sup_page_lookup(thread_current(), upage) == NULL);
 
   while (read_bytes > 0 || zero_bytes > 0) 
     {
@@ -602,22 +599,9 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Add page to supplemental page table */
-      //TODO ensure if page is loaded ZERO bytes are added simply use PAL_ZERO in every palloc_get_page?
-      if (!vm_sup_page_file_allocate (upage, file, ofs, page_read_bytes, writable)){
-        printf("DEBUG: Load segment failed!\n");
-        return false;
-      }
+      struct sup_page_entry *sup_page_entry = vm_sup_page_file_allocate (upage, file, ofs, page_read_bytes, writable);
 
-
-      //printf("DEBUG: load segment created sup page with vaddr %p\n", upage);
-
-      //struct sup_page_entry *created_sup_page = vm_sup_page_lookup(current_thread, upage);
-      //ASSERT(created_sup_page != NULL);
-
-      // TODO with this line below we pass page_parallel
-      //vm_load_file(created_sup_page->vm_addr);
-
-      //printf("DEBUG: sup_page allocated at vaddr: %p\n", upage);
+      ASSERT(sup_page_entry != NULL);
 
       /* Advance. */
       // TODO: page_read_bytes is uint32_t BUT ofs is int32_t !!!!!!! broken
@@ -626,7 +610,6 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       zero_bytes -= page_zero_bytes;
       upage += PGSIZE;
     }
-  //printf("DEBUG: Load segment success!\n";
   return true;
 }
 

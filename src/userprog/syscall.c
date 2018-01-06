@@ -72,10 +72,10 @@ syscall_handler (struct intr_frame *f UNUSED)
 
   validate_pointer(esp, esp);
 
-  //printf("DEBUG: Syscall_handler started \n");
 
   /* syscall type int is stored at adress esp */
   int32_t syscall_type = *((int*)esp);
+  //printf("DEBUG: Syscall_handler started with type %i\n", syscall_type);
 
   switch (syscall_type)
     {
@@ -294,14 +294,10 @@ validate_string(const char *buffer, void *esp){
 /* TODO this should be done more efficiently! */
 void
 load_and_pin_buffer(const void *buffer, unsigned size, void *esp){
-  //printf("DEBUG: loading and pinning buffer started\n");
-  struct thread *current_thread = thread_current();
   void *last_vm_addr = NULL;
 
   unsigned i = 0;
   const char* buffer_iter = buffer;
-	// TODO: check if this line can be removed
-  //struct thread *thread = thread_current();
   while (i < (size)){
     void *vm_addr = pg_round_down(buffer_iter);
     if (vm_addr == last_vm_addr){
@@ -312,23 +308,19 @@ load_and_pin_buffer(const void *buffer, unsigned size, void *esp){
     if ((buffer_iter + 32 >= esp) && (buffer_iter < PHYS_BASE) && (PHYS_BASE - STACK_SIZE <= vm_addr)){
       vm_grow_stack(vm_addr);
     }
-    vm_sup_page_load_and_pin(vm_sup_page_lookup(current_thread, vm_addr));
+    vm_sup_page_load_and_pin(vm_sup_page_lookup(thread_current(), vm_addr));
     i += 1;
   }
-  //printf("DEBUG: loading and pinning buffer ended\n");
 }
 
 /* TODO this should be done more efficiently! */
 void
 unpin_buffer(const void *buffer, unsigned size){
-  //printf("DEBUG: unpinning buffer started\n");
-  struct thread *current_thread = thread_current();
   void *last_vm_addr = NULL;
 
   unsigned i = 0;
   const char* buffer_iter = buffer;
-	// TODO: check if this line can be removed
-  //struct thread *thread = thread_current();
+
   while (i < (size)){
     void *vm_addr = pg_round_down(buffer_iter);
     if (vm_addr == last_vm_addr){
@@ -336,17 +328,14 @@ unpin_buffer(const void *buffer, unsigned size){
       continue;
     }
     last_vm_addr = vm_addr;
-    vm_sup_page_unpin(vm_sup_page_lookup(current_thread, vm_addr));
+    vm_sup_page_unpin(vm_sup_page_lookup(thread_current(), vm_addr));
     i += 1;
   }
-  //printf("DEBUG: unpinning buffer finished\n");
 }
 
 /* TODO this should be done more efficiently! */
 void
 load_and_pin_string(const void *buffer, void *esp){
-  //printf("DEBUG: loading and pinning string started\n");
-  struct thread *current_thread = thread_current();
   void *last_vm_addr = NULL;
 
   const char* buffer_iter = buffer;
@@ -363,19 +352,16 @@ load_and_pin_string(const void *buffer, void *esp){
     if ((buffer_iter + 32 >= esp) && (buffer_iter < PHYS_BASE) && (PHYS_BASE - STACK_SIZE <= vm_addr)){
       vm_grow_stack(vm_addr);
     }
-    vm_sup_page_load_and_pin(vm_sup_page_lookup(current_thread, vm_addr));
+    vm_sup_page_load_and_pin(vm_sup_page_lookup(thread_current(), vm_addr));
     buffer_iter += 1;
   }
-  //printf("DEBUG: loading and pinning string finished\n");
 
 }
 
 /* TODO this should be done more efficiently! */
 void
 unpin_string(const void *buffer){
-  //printf("DEBUG: unpinning string started\n");
-  struct thread *current_thread = thread_current();
-  void *last_vm_addr;
+  void *last_vm_addr = NULL;
 
   const char* buffer_iter = buffer;
   while (true){
@@ -388,7 +374,7 @@ unpin_string(const void *buffer){
       continue;
     }
     last_vm_addr = vm_addr;
-    vm_sup_page_unpin(vm_sup_page_lookup(current_thread, vm_addr));
+    vm_sup_page_unpin(vm_sup_page_lookup(thread_current(), vm_addr));
     buffer_iter += 1;
   }
   //printf("DEBUG: unpinning string finished\n");
@@ -926,7 +912,6 @@ void syscall_munmap (mapid_t mapping){
     syscall_exit(-1);
   }
   free(mmap_entry);
-  struct file *file = NULL;
 
   while(needed_pages > 0){
     struct sup_page_entry *sup_page_entry = vm_sup_page_lookup (thread, vaddr);
@@ -940,6 +925,7 @@ void syscall_munmap (mapid_t mapping){
     }
     needed_pages -= 1;
     vaddr += PGSIZE;
-    file = sup_page_entry->file;
+    // TODO what is this line below?
+    //file = sup_page_entry->file;
   }
 }
