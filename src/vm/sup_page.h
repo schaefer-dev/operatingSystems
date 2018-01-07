@@ -10,7 +10,6 @@
 #include <stdio.h>
 
 
-// TODO rethink stack_size
 #define STACK_SIZE (8 * 1048576)
 
 

@@ -1,0 +1,403 @@
+		    +---------------------------+
+		    |             OS            |
+		    | PROJECT 3: VIRTUAL MEMORY |
+		    |      DESIGN DOCUMENT      |
+		    +---------------------------+
+
+---- GROUP ----
+
+>> Fill in the names and email addresses of your group members.
+
+Daniel Schäfer <s9dlscae@stud.uni-saaland.de>
+Christian Bohnenberger <s9cnbohn@stud.uni-saaland.de>
+
+---- PRELIMINARIES ----
+
+>> If you have any preliminary comments on your submission, notes for the
+>> TAs, or extra credit, please give them here.
+
+>> Please cite any offline or online sources you consulted while
+>> preparing your submission, other than the Pintos documentation, course
+>> text, lecture notes, and course staff.
+
+			PAGE TABLE MANAGEMENT
+			=====================
+
+---- DATA STRUCTURES ----
+
+>> A1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+In sup_page.h:
+
+#define STACK_SIZE (8 * 1048576)
+
+STACK_SIZE determines the maximum of a stack in our case 8 MB.
+
+
+/* Different statuses the page can have */
+enum page_status
+  {
+    PAGE_STATUS_NOT_LOADED = 1,          /* page not loaded */
+    PAGE_STATUS_LOADED = 2,              /* Page Loaded */
+    PAGE_STATUS_SWAPPED = 4,             /* Page Eviced and writen to SWAP */
+  };
+
+Page status determines the current state of a page to check whether it loaded
+or the location from where it has to be loaded. 
+
+/* Different types the page can have */
+enum page_type
+  {
+    PAGE_TYPE_FILE = 1,
+    PAGE_TYPE_STACK = 2,
+    PAGE_TYPE_MMAP = 4,
+  };
+
+Page type is used to distinguish the possible types of a type to choose the
+correct function to load/delete a page.
+
+
+struct sup_page_entry
+  {
+    enum page_status status;
+    enum page_type type;
+
+    /* physical address of supplemental page */
+    void *phys_addr; 
+
+    /* Virtual Memory adress this page will be loaded to in a page fault */
+    void *vm_addr;
+
+    /* swap sector of swapped page */
+    block_sector_t swap_addr;
+
+    /* thread this frame belongs to */
+    struct thread *thread;
+
+    /* offset at which this page starts reading the referenced file */
+    off_t file_offset;
+
+    /* size of read_bytes in file at position file_offset*/
+    off_t read_bytes;
+
+    /* file from which we read our data */
+    struct file *file;
+
+    /* id to identify mmap */
+    int mmap_id;
+
+    /* bool to indicate if file/page is writable */
+    bool writable;
+
+    /* bool to indicate if the page is pinned */
+    bool pinned;
+
+    /* palloc flags which are used when the frame is created */
+    enum palloc_flags pflags;
+
+    /* locks changes in struct sup_page_entry */
+    struct lock page_lock;
+
+    struct hash_elem h_elem;
+  };
+
+- sup_page_entry: data strcuture to store suppplemental pages
+
+- status: indicates the current status of the page (loaded, swapped, not_loaded)
+
+- type: indicates the type of the page (mmap, file, stack)
+
+- phys_addr: pyhsical address of this page. NULL if page is not loaded else
+ the pysical address of the frame if page is loaded
+
+- vm_addr: the unique virtual address of the page within this process (used as
+ key of the hashmap)
+
+- thread: thread to which the page belongs to
+
+- file_offset: offset within file to know where to read/write the file in case
+ of page fault or write back (-1 in case of stack)
+
+- read_bytes: number of bytes to read/write in the file in case of page fault
+ or write back (-1 in case of stack)
+
+- file: file from which data are read
+
+- mmap_id: unique mmap id for a process to identify the mmap
+
+- writable: indicates if page is writable or read-only
+
+- pinned: boolean to indicate whether page may be evicted
+
+- pflags: flags to allocate page with correct flags
+
+- page_lock: lock used such that field in sup_page_entry
+(e.g. status) can be read and written safely
+
+- h_elem: hash_elem to store sup_page_entry in hashmap
+
+In frame.h:
+
+struct lock frame_lock;
+
+- frame_lock: global lock to ensure that frames are safely added/deleted
+
+struct lock grow_stack_lock;
+
+- grow_stack_lock: global lock to ensure that only one stack_growth at a
+ time can happen
+
+
+struct frame
+  {
+    /* physical address of frame */
+    void *phys_addr;               
+
+    /* supplemental Page Table Entry in which this frame is stored. */
+    // for shared memory implementation, this will change into a list of sup_page_entries
+    struct sup_page_entry *sup_page_entry;
+
+    // thread which holds this frame to set the pagedir
+    //struct thread *thread;
+
+    struct list_elem l_elem;
+  };
+
+- struct frame: struct to store physical memory pages
+
+Fields:
+- pyhs_addr: physical address of this frame (received by palloc_get_page)
+
+- sup_page_entry: page to which this frame belongs to
+
+- thread: thread which owns this frame
+
+- l_elem: list_elem to store frames in a list
+
+In frame.c:
+- static struct list frame_list: list to store all current used frames
+
+- struct list_elem *clock_iterator: iterator which points to the next frame
+ which is check in case of page eviction (start of clock algorithm iteration)
+
+In thread.h:
+
+- struct hash sup_page_hashmap: hashmap to store all supplemental pages of
+a process
+
+
+---- ALGORITHMS ----
+
+>> A2: In a few paragraphs, describe your code for locating the frame,
+>> if any, that contains the data of a given page.
+
+If the page is already loaded the frame exists and the access to the frame
+succeed.
+If a page fault occurs:
+1.) We search for a sup_page_entry in exception.c using vm_sup_page_lookup
+with the current thread and the virtual address which casued the page fault,
+however this address is rounded down using pg_round_down.
+
+case 1: the frame was not found
+2.1.) We check if the condition for stack_growth is fulfilled and calls 
+vm_grow_stack if the condition holds. This function acquires the 
+grow_stack_lock and creates a new sup_page_entry using vm_sup_page_allocate.
+In the next step we acquire the lock of the newly generated sup_page_entry
+and call vm_frame_allocate to get a physical page. Afterwards the held locks
+are released.
+
+case 2: the frame was found
+2.2.) We call vm_sup_page_load on the found sup_page_entry. This function first
+acquires the page_lock of this sup_page_entry and pins the page. In the next
+step we switch over the status of the page. If the page is already laoded we 
+simply release the lock and return b.c. the page is already loaded. 
+If the status indicates the page is swapped we call vm_load_swap on this
+sup_page_entry to load the page. (This will be explained in more detail later
+on).
+If the page is not loaded we call vm_load_file on this sup_page_entry
+(b.c. a stack is either loaded or swapped). 
+
+3.2.)
+A page/frame to write the data in will be allocated using vm_frame_allocate.
+This function tries to allocate a using palloc_get_page. If this physical 
+address is NULL we need to evict a page by calling vm_evict_page (explained 
+in more detail later on) which returns a physical address.
+After receiving a physical address we set it in the sup_page_entry and create
+a new struct frame and insert it into the frame list.
+After receiving a frame we read the data from our file to the frame/physical
+address and release the lock.
+
+3.3.) 
+The instruction which caused the page fault will be executed again.
+
+>> A3: How does your code coordinate accessed and dirty bits between
+>> kernel and user virtual addresses that alias a single frame, or
+>> alternatively how do you avoid the issue?
+
+In page fault the kernel virtual addresses can only only be accessed 
+in case of a stack growth is needed. To handle this case we save the
+current stack pointer in the current thread every times syscall is done.
+With this approach we can get the current stack pointer from the thread
+and call stack growth if it is needed.
+In all other cases we avoid kernel addresses in all cases by checking
+if the all accesses are legal user acccesses in every single syscall.
+To do so we check the esp, and validate the complete buffer and strings.
+In order to do so we check if the address is in user virtual memory and
+if there already exists a sup_page_entry. Furthermore, we load and pin 
+the pages in the start of each syscall and unpin the pages when the
+syscall ends.
+
+---- SYNCHRONIZATION ----
+
+>> A4: When two user processes both need a new frame at the same time,
+>> how are races avoided?
+
+We got a global frame_lock avoids races. In more detail, there is only
+one possibility to get a frame by calling vm_frame_allocate. This function
+directly acquires the frame_lock and holds it until it returns. 
+Within this function vm_evict_page could be called but this function can
+only be called if the frame_lock is held by the current thread.
+This ensures that only one user can get a new frame at the same time.
+Furthermore, there is only one function which deletes frames, called
+vm_frame_free which also acquires the lock at the very beginning.
+Furthermore frames are manually freed and removed from the frame list
+in vm_evict_page but this is okay because the lock is held in this case.
+
+---- RATIONALE ----
+
+>> A5: Why did you choose the data structure(s) that you did for
+>> representing virtual-to-physical mappings?
+
+We decided to take a hashmap to store sup_page_entry's because we will
+often perform a lookup on supplemental pages and this is very efficient
+using a hashmap. Furthermore, we only have to iterate over all pages in the
+case of a process exit, however this function is also efficiently supported
+if the hashmap will be deleted.
+Furthermore we need the page_lock in each sup_page because the status of a 
+page could change during a page eviction which is done by a different thread.
+To ensure that all writes and reads of fields in the sup_page_entry this lock
+is needed.
+Furthermore, a supplemental page needs to store the current state and the type
+to handle the page correctly. Since 3 possibile states and 3 types are possible
+we decided to create enums to avoid using different structs or many booleans.
+The virtual address and file information have to be stored to load the page 
+and identify the pages. The mmap_id is also needed to handle munmap.
+Pinned is used to prevent eviction of this page. This is done to avoid 
+page faults in kernel while accessing user memory (e.g. buffer). Because
+these kind of page faults cannot be resolved (e.g. because of held locks).
+
+Frames are stored in a list because we often need to iterate over all used
+frames (see page eviction). Furthermore, we often add and delete frames,
+this is also efficient using lists and we don't need efficient lookups
+on frames.
+Frames of course have to store their location (physical address) and the
+corresponding page (sup_page_entry). The frame_lock is needed to avoid
+that races occur in case of 2 user processes need a new frame at the same
+time (see above).
+
+		       PAGING TO AND FROM DISK
+		       =======================
+
+---- DATA STRUCTURES ----
+
+>> B1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+---- ALGORITHMS ----
+
+>> B2: When a frame is required but none is free, some frame must be
+>> evicted.  Describe your code for choosing a frame to evict.
+
+>> B3: When a process P obtains a frame that was previously used by a
+>> process Q, how do you adjust the page table (and any other data
+>> structures) to reflect the frame Q no longer has?
+
+>> B4: Explain your heuristic for deciding whether a page fault for an
+>> invalid virtual address should cause the stack to be extended into
+>> the page that faulted.
+
+---- SYNCHRONIZATION ----
+
+>> B5: Explain the basics of your VM synchronization design.  In
+>> particular, explain how it prevents deadlock.  (Refer to the
+>> textbook for an explanation of the necessary conditions for
+>> deadlock.)
+
+>> B6: A page fault in process P can cause another process Q's frame
+>> to be evicted.  How do you ensure that Q cannot access or modify
+>> the page during the eviction process?  How do you avoid a race
+>> between P evicting Q's frame and Q faulting the page back in?
+
+>> B7: Suppose a page fault in process P causes a page to be read from
+>> the file system or swap.  How do you ensure that a second process Q
+>> cannot interfere by e.g. attempting to evict the frame while it is
+>> still being read in?
+
+>> B8: Explain how you handle access to paged-out pages that occur
+>> during system calls.  Do you use page faults to bring in pages (as
+>> in user programs), or do you have a mechanism for "locking" frames
+>> into physical memory, or do you use some other design?  How do you
+>> gracefully handle attempted accesses to invalid virtual addresses?
+
+---- RATIONALE ----
+
+>> B9: A single lock for the whole VM system would make
+>> synchronization easy, but limit parallelism.  On the other hand,
+>> using many locks complicates synchronization and raises the
+>> possibility for deadlock but allows for high parallelism.  Explain
+>> where your design falls along this continuum and why you chose to
+>> design it this way.
+
+			 MEMORY MAPPED FILES
+			 ===================
+
+---- DATA STRUCTURES ----
+
+>> C1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+---- ALGORITHMS ----
+
+>> C2: Describe how memory mapped files integrate into your virtual
+>> memory subsystem.  Explain how the page fault and eviction
+>> processes differ between swap pages and other pages.
+
+>> C3: Explain how you determine whether a new file mapping overlaps
+>> any existing segment.
+
+---- RATIONALE ----
+
+>> C4: Mappings created with "mmap" have similar semantics to those of
+>> data demand-paged from executables, except that "mmap" mappings are
+>> written back to their original files, not to swap.  This implies
+>> that much of their implementation can be shared.  Explain why your
+>> implementation either does or does not share much of the code for
+>> the two situations.
+
+			   SURVEY QUESTIONS
+			   ================
+
+Answering these questions is optional, but it will help us improve the
+course in future quarters.  Feel free to tell us anything you
+want--these questions are just to spur your thoughts.  You may also
+choose to respond anonymously in the course evaluations at the end of
+the quarter.
+
+>> In your opinion, was this assignment, or any one of the three problems
+>> in it, too easy or too hard?  Did it take too long or too little time?
+
+>> Did you find that working on a particular part of the assignment gave
+>> you greater insight into some aspect of OS design?
+
+>> Is there some particular fact or hint we should give students in
+>> future quarters to help them solve the problems?  Conversely, did you
+>> find any of our guidance to be misleading?
+
+>> Do you have any suggestions for the TAs to more effectively assist
+>> students, either for future quarters or the remaining projects?
+
+>> Any other comments?
