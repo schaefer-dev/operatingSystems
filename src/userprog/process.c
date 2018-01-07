@@ -533,8 +533,11 @@ load_segment_not_lazy (struct file *file, off_t ofs, uint8_t *upage,
         printf("page could not be allocated in load_segment \n");
 
       struct sup_page_entry *sup_page_entry = vm_sup_page_lookup(thread, upage);
-      
+      lock_acquire(&sup_page_entry->page_lock);
+
       uint8_t *kpage = vm_frame_allocate(sup_page_entry, (PAL_USER), writable);
+
+
       if (kpage == NULL)
         return false;
 
@@ -542,6 +545,7 @@ load_segment_not_lazy (struct file *file, off_t ofs, uint8_t *upage,
       if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
         {
           vm_frame_free(kpage, upage);
+          lock_release(&sup_page_entry->page_lock);
           return false; 
         }
       memset (kpage + page_read_bytes, 0, page_zero_bytes);
@@ -552,13 +556,15 @@ load_segment_not_lazy (struct file *file, off_t ofs, uint8_t *upage,
       */
       sup_page_entry->status = PAGE_STATUS_LOADED;
       sup_page_entry->phys_addr = kpage;
-      /*
-      sup_page_entry->type = PAGE_TYPE_FILE;
+      sup_page_entry->pinned = false;
+      
       sup_page_entry->writable = writable;
       sup_page_entry->file = file;
       sup_page_entry->file_offset = ofs;
       sup_page_entry->read_bytes = page_read_bytes;
-      */
+      
+      install_page(sup_page_entry->vm_addr, kpage, writable);
+      lock_release(&sup_page_entry->page_lock);
 
       /* Advance. */
       ofs += PGSIZE;
