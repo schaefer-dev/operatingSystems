@@ -72,8 +72,10 @@ bool
 vm_grow_stack(void *fault_frame_addr)
 {
   lock_acquire(&grow_stack_lock);
-  if(vm_sup_page_lookup(thread_current(), fault_frame_addr) != NULL)
+  if(vm_sup_page_lookup(thread_current(), fault_frame_addr) != NULL){
+    lock_release(&grow_stack_lock);
     return true;
+  }
 
   //printf("DEBUG: grow stack print 1\n");
   struct sup_page_entry *sup_page_entry =  vm_sup_page_allocate(fault_frame_addr, true);
@@ -91,12 +93,15 @@ vm_grow_stack(void *fault_frame_addr)
   if (page == NULL){
     lock_release(&sup_page_entry->page_lock);
     printf("stack growth could not allocate page!\n");
+    lock_release(&grow_stack_lock);
     return false;
   }
 
   //printf("DEBUG: grow stack print 5\n");
   bool success = install_page(sup_page_entry->vm_addr, sup_page_entry->phys_addr, sup_page_entry->writable);
   // TODO we should verify success
+  if (success = false)
+    printf("DEBUG: failure of page install in grow stack\n");
   success = true;
   if (success){
     sup_page_entry->status = PAGE_STATUS_LOADED;
