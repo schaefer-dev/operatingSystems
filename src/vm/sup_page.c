@@ -100,22 +100,23 @@ vm_grow_stack(void *fault_frame_addr)
   //printf("DEBUG: grow stack print 5\n");
   bool success = install_page(sup_page_entry->vm_addr, sup_page_entry->phys_addr, sup_page_entry->writable);
   // TODO we should verify success
-  if (success = false)
-    printf("DEBUG: failure of page install in grow stack\n");
+  //if (success == false)
+  //printf("DEBUG: failure of page install in grow stack\n");
   success = true;
   if (success){
     sup_page_entry->status = PAGE_STATUS_LOADED;
     sup_page_entry->pinned = false;
     lock_release(&sup_page_entry->page_lock);
+    lock_release(&grow_stack_lock);
     return true;
   } else {
     vm_frame_free(page, sup_page_entry->vm_addr);
     hash_delete(&(thread_current()->sup_page_hashmap), &(sup_page_entry->h_elem));
     lock_release(&sup_page_entry->page_lock);
     free(sup_page_entry);
+    lock_release(&grow_stack_lock);
     return true;
   }
-  lock_release(&grow_stack_lock);
 }
 
 
