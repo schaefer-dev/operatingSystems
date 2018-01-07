@@ -306,6 +306,22 @@ time (see above).
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+In swap:
+- static struct block *swap: block which is used as swap partition
+
+
+- static unsigned swap_size: stores how many pages can be contained
+in the swap-block
+
+- static uint32_t SECTORS_FOR_PAGE = PGSIZE / BLOCK_SECTOR_SIZE:
+ Number of sectors necessary to store an entire page
+
+/* value true -> free swap */
+- static struct bitmap *swap_free_bitmap: bitmap used to indicate
+which swap slots are in use and which are free
+
+- static struct lock swap_lock: lock to ensure safe swap in and out
+
 ---- ALGORITHMS ----
 
 >> B2: When a frame is required but none is free, some frame must be
