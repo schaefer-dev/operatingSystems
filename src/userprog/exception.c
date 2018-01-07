@@ -197,8 +197,10 @@ page_fault (struct intr_frame *f)
     }
 
   } else {
+      lock_acquire(&grow_stack_lock);
       vm_sup_page_load(sup_page_entry);
       /* unpin after loading finished */
       vm_sup_page_unpin(sup_page_entry);
+      lock_release(&grow_stack_lock);
   }
 }

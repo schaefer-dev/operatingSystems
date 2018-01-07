@@ -824,7 +824,6 @@ mmap_hashmap_free(struct hash_elem *hash, void *aux UNUSED)
 void
 mmap_hashmap_close(struct thread *thread)
 {
-  return;
   hash_destroy(&(thread->mmap_hashmap), mmap_hashmap_free);
 }
 

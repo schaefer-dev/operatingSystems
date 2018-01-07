@@ -101,7 +101,7 @@ vm_grow_stack(void *fault_frame_addr)
   bool success = install_page(sup_page_entry->vm_addr, sup_page_entry->phys_addr, sup_page_entry->writable);
   // TODO we should verify success
   //if (success == false)
-  //printf("DEBUG: failure of page install in grow stack\n");
+  //  printf("DEBUG: failure of page install in grow stack\n");
   success = true;
   if (success){
     sup_page_entry->status = PAGE_STATUS_LOADED;
