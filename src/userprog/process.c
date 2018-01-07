@@ -645,6 +645,7 @@ setup_stack (void **esp, char *argument_buffer, int argcount)
   sup_page_entry->status = PAGE_STATUS_LOADED;
   sup_page_entry->type = PAGE_TYPE_STACK;
   lock_release(&sup_page_entry->page_lock);
+  install_page(sup_page_entry->vm_addr, kpage, true);
 
   if (success) 
     {

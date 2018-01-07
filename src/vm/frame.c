@@ -80,8 +80,8 @@ vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pfla
   frame->sup_page_entry = sup_page_entry;
   sup_page_entry->status = PAGE_STATUS_LOADED;
 
-  // install page in pagedir of thread
-  install_page(sup_page_entry->vm_addr, page, writable);
+  // install page in pagedir of thread TODO this happens now only in load/stack_grow and stack_setup
+  //install_page(sup_page_entry->vm_addr, page, writable);
 
   list_push_back (&frame_list, &frame->l_elem);
 

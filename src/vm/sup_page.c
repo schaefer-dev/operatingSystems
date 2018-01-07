@@ -100,8 +100,8 @@ vm_grow_stack(void *fault_frame_addr)
   //printf("DEBUG: grow stack print 5\n");
   bool success = install_page(sup_page_entry->vm_addr, sup_page_entry->phys_addr, sup_page_entry->writable);
   // TODO we should verify success
-  //if (success == false)
-  //  printf("DEBUG: failure of page install in grow stack\n");
+  if (!success)
+    printf("DEBUG: failure of page install in grow stack\n");
   success = true;
   if (success){
     sup_page_entry->status = PAGE_STATUS_LOADED;
@@ -244,7 +244,9 @@ vm_sup_page_load (struct sup_page_entry *sup_page_entry){
   sup_page_entry->status = PAGE_STATUS_LOADED;
   ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
   lock_release(&sup_page_entry->page_lock);
-  install_page(sup_page_entry->vm_addr, sup_page_entry->phys_addr, sup_page_entry->writable);
+  bool success = install_page(sup_page_entry->vm_addr, sup_page_entry->phys_addr, sup_page_entry->writable);
+  if (!success)
+    printf("DEBUG: page loading page install failed");
 }
 
 
