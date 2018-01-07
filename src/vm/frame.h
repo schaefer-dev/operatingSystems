@@ -8,6 +8,7 @@
 
 /* lock to guarantee mutal exclusiveness on frame operations */
 struct lock frame_lock;
+struct lock grow_stack_lock;
 
 
 struct frame

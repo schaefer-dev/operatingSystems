@@ -50,6 +50,7 @@ vm_frame_lookup (void *phys_addr)
 void
 vm_frame_init () {
   lock_init (&frame_lock);
+  lock_init (&grow_stack_lock);
   list_init (&frame_list);
   clock_iterator = NULL;
 }
@@ -64,16 +65,20 @@ vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pfla
 
   void *page = palloc_get_page(PAL_USER | pflags);
 
+  //printf("DEBUG: frame allocate print 1\n");
+
   if (page == NULL) {
     page = vm_evict_page(PAL_USER | pflags);
   }
+
+  //printf("DEBUG: frame allocate print 2\n");
 
   struct frame *frame = malloc(sizeof(struct frame));
 
   sup_page_entry->phys_addr = page;
   frame->phys_addr = page;
   frame->sup_page_entry = sup_page_entry;
-  frame->sup_page_entry->status = PAGE_STATUS_LOADED;
+  sup_page_entry->status = PAGE_STATUS_LOADED;
 
   // install page in pagedir of thread
   install_page(sup_page_entry->vm_addr, page, writable);
@@ -118,9 +123,9 @@ vm_frame_free (void *phys_addr, void *upage)
     }
   }
 
-  printf("DEBUG: removing frame in vm_frame_free start at %p\n", found_frame->phys_addr);
+  //printf("DEBUG: removing frame in vm_frame_free start at %p\n", found_frame->phys_addr);
   list_remove (&found_frame->l_elem);
-  printf("DEBUG: removing frame in vm_frame_free end\n");
+  //printf("DEBUG: removing frame in vm_frame_free end\n");
   palloc_free_page(phys_addr);
   // TODO is uninstall_page correct here? Maybe better put elsewhere
   uninstall_page(upage);
@@ -135,6 +140,7 @@ vm_frame_free (void *phys_addr, void *upage)
 
 void
 vm_evict_page_next_iterator(void){
+  //printf("DEBUG: evict page next iter started\n");
   if (list_empty(&frame_list)){
     clock_iterator = NULL;
   }
@@ -145,6 +151,7 @@ vm_evict_page_next_iterator(void){
   } else {
     clock_iterator = list_next(clock_iterator);
   }
+  //printf("DEBUG: evict page next iter finished\n");
 }
 
 
@@ -159,23 +166,35 @@ vm_evict_page(enum palloc_flags pflags){
   if (clock_iterator == NULL)
     clock_iterator = list_begin (&frame_list);
 
+
+  //printf("DEBUG: starting eviction\n");
+
   /* iterate over all frames until a frame is not accessed 
      (could be more than iteration) */
   while (true){
       struct frame *iter_frame = list_entry (clock_iterator, struct frame, l_elem);
       struct sup_page_entry *iter_sup_page = iter_frame->sup_page_entry;
 
+      //printf("DEBUG: evict iter\n");
+
       ASSERT(iter_frame != NULL);
       ASSERT(iter_sup_page != NULL);
 
       /* if sup page is pinned look at next page */
+      //printf("DEBUG: eviction print 1\n");
       ASSERT(!lock_held_by_current_thread(&iter_sup_page->page_lock));
-      lock_acquire(&iter_sup_page->page_lock);
+      //printf("DEBUG: eviction print 2\n");
+      // TODO acquire page lock here
+      //printf("DEBUG: eviction print 3\n");
       if (iter_sup_page->pinned == true){
-        lock_release(&iter_sup_page->page_lock);
+        //printf("DEBUG: eviction print 4\n");
+        // TODO release page lock here
+        //printf("DEBUG: eviction print 5\n");
         vm_evict_page_next_iterator();
         continue;
       }
+      lock_acquire(&iter_sup_page->page_lock);
+      //printf("DEBUG: eviction print 6\n");
 
       struct thread *page_thread = iter_sup_page->thread;
 
@@ -186,6 +205,8 @@ vm_evict_page(enum palloc_flags pflags){
          pagedir_set_accessed(page_thread->pagedir, iter_sup_page->vm_addr, false);
          lock_release(&iter_sup_page->page_lock);
       } else {
+
+        //printf("DEBUG: Found a page for eviction\n");
 
         //printf("DEBUG: evicting page with vaddr: %p and phys_addr %p\n", iter_sup_page->vm_addr, iter_sup_page->phys_addr);
 

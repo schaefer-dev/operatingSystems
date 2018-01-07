@@ -71,16 +71,21 @@ vm_sup_page_init (struct thread *thread) {
 bool
 vm_grow_stack(void *fault_frame_addr)
 {
-  if (vm_sup_page_lookup(thread_current(), fault_frame_addr) != NULL)
+  lock_acquire(&grow_stack_lock);
+  if(vm_sup_page_lookup(thread_current(), fault_frame_addr) != NULL)
     return true;
 
+  //printf("DEBUG: grow stack print 1\n");
   struct sup_page_entry *sup_page_entry =  vm_sup_page_allocate(fault_frame_addr, true);
+  //printf("DEBUG: grow stack print 2\n");
   ASSERT(!lock_held_by_current_thread(&sup_page_entry->page_lock));
   ASSERT(!lock_held_by_current_thread(&frame_lock));
   lock_acquire(&sup_page_entry->page_lock);
   sup_page_entry->pinned = true;
 
+  //printf("DEBUG: grow stack print 3\n");
   void *page = vm_frame_allocate(sup_page_entry, (PAL_ZERO | PAL_USER) , true);
+  //printf("DEBUG: grow stack print 4\n");
   //sup_page_entry->pinned = true;
 
   if (page == NULL){
@@ -89,14 +94,23 @@ vm_grow_stack(void *fault_frame_addr)
     return false;
   }
 
-  if (intr_context()){
+  //printf("DEBUG: grow stack print 5\n");
+  bool success = install_page(sup_page_entry->vm_addr, sup_page_entry->phys_addr, sup_page_entry->writable);
+  // TODO we should verify success
+  success = true;
+  if (success){
+    sup_page_entry->status = PAGE_STATUS_LOADED;
     sup_page_entry->pinned = false;
+    lock_release(&sup_page_entry->page_lock);
+    return true;
+  } else {
+    vm_frame_free(page, sup_page_entry->vm_addr);
+    hash_delete(&(thread_current()->sup_page_hashmap), &(sup_page_entry->h_elem));
+    lock_release(&sup_page_entry->page_lock);
+    free(sup_page_entry);
+    return true;
   }
-
-  install_page(sup_page_entry->vm_addr, sup_page_entry->phys_addr, sup_page_entry->writable);
-  sup_page_entry->status = PAGE_STATUS_LOADED;
-  lock_release(&sup_page_entry->page_lock);
-  return true;
+  lock_release(&grow_stack_lock);
 }
 
 
@@ -118,7 +132,7 @@ vm_sup_page_allocate (void *vm_addr, bool writable){
   sup_page_entry->mmap_id=-1;
   sup_page_entry->file_offset = 0;
   sup_page_entry->writable = writable;
-  sup_page_entry->pinned = false;
+  sup_page_entry->pinned = true;
 
   lock_init(&sup_page_entry->page_lock);
 
@@ -211,8 +225,9 @@ vm_sup_page_load (struct sup_page_entry *sup_page_entry){
 
       case PAGE_STATUS_LOADED:
         {
-          /* page already loaded! */
-          break;
+          ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
+          lock_release(&sup_page_entry->page_lock);
+          return;
         }
       default:
         {
@@ -294,6 +309,7 @@ vm_load_file(struct sup_page_entry *sup_page_entry){
 void
 vm_sup_page_load_and_pin (struct sup_page_entry *sup_page_entry)
 {
+  ASSERT(!lock_held_by_current_thread(&sup_page_entry->page_lock));
   /* vm_sup_page_load pins */ 
   //sup_page_entry->pinned = true;
   vm_sup_page_load(sup_page_entry);

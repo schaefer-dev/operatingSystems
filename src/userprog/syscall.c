@@ -232,6 +232,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       }
     }
   //printf("DEBUG: Syscall_handler left \n");
+  thread_current()->syscall_esp = NULL;
 }
 
 
