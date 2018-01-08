@@ -94,6 +94,9 @@ struct sup_page_entry
     /* bool to indicate if the page is pinned */
     bool pinned;
 
+    /* bool to indicate if the page is dirty */
+    bool dirty;
+
     /* palloc flags which are used when the frame is created */
     enum palloc_flags pflags;
 
@@ -130,6 +133,8 @@ struct sup_page_entry
 - writable: indicates if page is writable or read-only
 
 - pinned: boolean to indicate whether page may be evicted
+
+- dirty: boolean to indicate if the page was dirty before being evicted. 
 
 - pflags: flags to allocate page with correct flags
 
@@ -236,6 +241,8 @@ The instruction which caused the page fault will be executed again.
 >> kernel and user virtual addresses that alias a single frame, or
 >> alternatively how do you avoid the issue?
 
+//TODO rework
+
 In page fault the kernel virtual addresses can only only be accessed 
 in case of a stack growth is needed. To handle this case we save the
 current stack pointer in the current thread every times syscall is done.
@@ -309,7 +316,6 @@ time (see above).
 In swap:
 - static struct block *swap: block which is used as swap partition
 
-
 - static unsigned swap_size: stores how many pages can be contained
 in the swap-block
 
@@ -381,6 +387,17 @@ Process P gets a new physical page which is allocated using palloc_get_page.
 >> invalid virtual address should cause the stack to be extended into
 >> the page that faulted.
 
+// TODO remember to set stack_size in file to nicer formated number (hex)
+
+If a page fault occurs and there is no supplemental page table which
+contains the requested virtual adress we have to check if a stack_growth
+is valid. This is done by checking if the fault adress is between PHYS_BASE
+and esp-32. Additionally we have to verify that the stack does not grow
+further than its maximum size, which is set to 8 Megabytes in our case
+as suggested in the Project description.
+
+
+
 ---- SYNCHRONIZATION ----
 
 >> B5: Explain the basics of your VM synchronization design.  In
@@ -388,21 +405,69 @@ Process P gets a new physical page which is allocated using palloc_get_page.
 >> textbook for an explanation of the necessary conditions for
 >> deadlock.)
 
+1) We allow for shared access of ressources (for example frame list
+is shared for all threads/sup_pages).
+2) No preemption is obviously fullfilled with the lock implementation
+3) The eviction holds the Frame lock, and can possibly wait for the
+lock of one sup_page because the thread to which this sup_page belongs
+currently changes fields of the sup_page. Evict will continue as soon as
+all changes to the sup_page struct have been performed (and the lock will
+be acquired)
+4) Circularities: (dynamic condition)
+It is impossible for circularities to occur because the frame lock
+is always acquired before any of the sup_page locks except for 1 special case:
+During the eviction we already hold the lock for the sup page for which
+we are trying to get a physical page. Because each frame only corresponds
+one page and one page corresponds to at most one frame, there cannot be
+a frame contained in the frame list which corresponds to the sup_page of
+which we already hold the lock when the eviction starts. Because we can 
+only acquire the locks of sup pages which have currently loaded frames 
+during an eviction process. This means that it is impossible to achieve
+a circularity during the eviction.
+
 >> B6: A page fault in process P can cause another process Q's frame
 >> to be evicted.  How do you ensure that Q cannot access or modify
 >> the page during the eviction process?  How do you avoid a race
 >> between P evicting Q's frame and Q faulting the page back in?
+
+The eviction process will always hold the frame_lock. As soon as the Q's
+Page will be uninstalled a page fault in Q will occur and Q will try to
+load the evicted page again. This loading also has to acquire the frame_lock.
+This means that it can only start after the eviction process is 
+completed entirely. The reading and changing of values (e.g. status of the 
+page changes from PAGE_STATUS_LOADED to PAGE_STATUS_SWAPPED/NOT_LOADED) is 
+additionally synchronized to avoid data races (explained in more detail
+in other answers). 
 
 >> B7: Suppose a page fault in process P causes a page to be read from
 >> the file system or swap.  How do you ensure that a second process Q
 >> cannot interfere by e.g. attempting to evict the frame while it is
 >> still being read in?
 
+Frames which are currently being read in are not contained in the 
+frame_list because they are only inserted after the read is completely
+finished. This insertion is protected using the Frame_lock, which has
+to be held during the entire eviciton process. This means a currently
+loading page can never be evicted!
+
 >> B8: Explain how you handle access to paged-out pages that occur
 >> during system calls.  Do you use page faults to bring in pages (as
 >> in user programs), or do you have a mechanism for "locking" frames
 >> into physical memory, or do you use some other design?  How do you
 >> gracefully handle attempted accesses to invalid virtual addresses?
+
+In syscall we make sure to load AND pin all neccessary data (strings/
+buffers) during the verification of these structures. This assures
+that these strings/buffers can not be evicted during the syscall because
+evict will not consider any pinned pages (important: setting pinned
+to true/false is synchronized using the pages page_lock).
+As soon as the syscall is finished we set the pinned value for all
+previously pinned pages of this syscall to false, which means they 
+could possibly be evicted again.
+Additially we make sure to store the ESP at the beginning of each
+syscall to be able to access it during a page fault in this syscall,
+so we can check the conditions to perform a stack_growth.
+
 
 ---- RATIONALE ----
 
@@ -412,6 +477,31 @@ Process P gets a new physical page which is allocated using palloc_get_page.
 >> possibility for deadlock but allows for high parallelism.  Explain
 >> where your design falls along this continuum and why you chose to
 >> design it this way.
+
+// TODO maybe move frame locking to be only around inserting into frame list and around free/evict
+// TODO warnings
+We offer very efficient locking. It is quite clear that we have to acquire
+and hold the frame_lock during the entire frame allocation process (which
+might contain an evict process) and also during the frame free process.
+This is essential, because all threads work on the same list of Frames, and
+e.g. Frames which are not yet completely loaded are not allowed to be evicted
+etc.
+The other lock which is absolutely neccessary is a lock which protects
+all the fields of a sup_page. This might not seem neccessary at first
+glance but not only the thread to which the sup_page belongs writes
+into its fields but also other threads which might access this sup_page
+during an eviction process will read (and potentially change) values of 
+its fields. Its clear that the struct has to be protected against these 
+data races and therefore both read and write accesses on a sup_page 
+have to be protected using a lock. 
+The list of sup_pages in each thread doesnt have to be protected using 
+a lock beacuse only the thread to which this sup_page list belongs will
+work on/modify this list using the sup_page allocation and the removal
+of sup_pages (e.g. during termination of said thread).
+All this could be done only using the Frame_lock but this would severely
+
+
+
 
 			 MEMORY MAPPED FILES
 			 ===================
