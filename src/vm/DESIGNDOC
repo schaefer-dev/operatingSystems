@@ -422,14 +422,73 @@ Process P gets a new physical page which is allocated using palloc_get_page.
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+In thread.h: 
+
+struct mmap_entry
+  {
+    void* start_vaddr;
+    unsigned needed_pages;
+    mapid_t mmap_id;
+    struct hash_elem h_elem; 
+  };
+
+- struct mmap_entry: struct to store all needed information to manage
+mmaped files (in addition to sup_page_entry)
+
+- start_vaddr: stores the virtual address of the first sup_page_entry 
+of the mmaped file
+
+- needed_pages: stores how many sup_page_entry structs are used to store
+the memory mapped file
+
+- mmap_id: unique id of the mmap file to identify to which mmaped file the
+struct mmap_entry belongs to (also used as key of hashmap)
+
+- h_elem: hash_elem to store mmap_entry in a hashmap to ensure fast lookups
+
+- struct hash mmap_hashmap: hashmap to store all mmap file entries (mmap_entry)
+ currently allocated by the process
+
+
+
 ---- ALGORITHMS ----
 
 >> C2: Describe how memory mapped files integrate into your virtual
 >> memory subsystem.  Explain how the page fault and eviction
 >> processes differ between swap pages and other pages.
 
+Memory mapped files are handled in the same way as all other pages are handled.
+If a file is memory mapped using mmap we allocate a sup_page_entry struct for
+each needed page (code to create all needed sup_page_entry structs similar
+to load_segment). In order to do so we reopen the file, compute the offset and
+read bytes and get a unique mmap id. This is used to create all sup_page_entry
+structs with page type PAGE_TYPE_MMAP. Furthermore a mmap_entry is created to
+perform the munmap function.
+If a page fault happens and it is caused by an mmap file a sup_page_entry 
+already exists and we found it. Afterwards we call vm_load_page with this
+sup_page_entry. Since a mmap file can only be loaded or unloaded but never
+swapped we enter the PAGE_STATUS_NOT_LOADED case and call vm_load_file 
+because it doesn't matter if we load a normal file or a mmaped file.
+
+A page eviction on mmaped files is different to files and the stack.
+A stack page is always swapped to the swap partition the same holds for
+a dirty file sup_page_entry (file which is not dirty doesn't have to be
+swapped because it can simply be loaded from the file).
+A memory mapped file is written back to the file if the page was dirty.
+Independent of the dirty bit the status is set to not_loaded becuase the 
+page has to be loaded from the file in both cases (if it is needed again).
+
+
 >> C3: Explain how you determine whether a new file mapping overlaps
 >> any existing segment.
+
+In order to check if a new file mapping overlaps any existing segment
+we compute how many pages are needed to store the file and then we check
+for every single page if the page is below the stack pointer, in user
+virtual address space and if a sup_page_entry exists at the given virtual
+memory address. If we find a sup_page_entry at the address or the address
+overlaps with the stack pointer or the address is not in user virtual
+address space the mmap returns with -1 and no pages are allocated.
 
 ---- RATIONALE ----
 
@@ -439,6 +498,28 @@ Process P gets a new physical page which is allocated using palloc_get_page.
 >> that much of their implementation can be shared.  Explain why your
 >> implementation either does or does not share much of the code for
 >> the two situations.
+
+Memory mapped files and normal files are loaded in the same way with the
+same function, because there is no difference in the loading process in
+both cases the content is read to the page at a given offset.
+Furthermore, both types are stored in the same sup_page_entry struct because
+only the page type differs (same struct but different type).
+In order to share as much code as possible vm_load_page checks the status
+of the page and uses vm_load_swap to swap back content to physical pages but
+this is only used in case of files or the stack because memory mapped files
+are never swapped.
+However, there exists a vm_write_mmap_back function to write back possible
+changes back to the file in case of page eviction or process termination.
+That means we switch over the page types in page eviction in order to handle
+the differences between stack, files and mmaped files. And call 
+vm_write_mmap_back (checks if page is dirty) only in case of mmaped files.
+Furthermore, there different code to delete sup_page_entry structs in case
+of process termination. Because only in case of a memory mapped file the
+content is written back to the file using vm_write_mmap_back.
+So basically code which can be shared is shared since it does not make
+sense to duplicate code if the behavior is exactly the same only some
+additional code (e.g. vm_write_mmap_back) is added.
+
 
 			   SURVEY QUESTIONS
 			   ================
