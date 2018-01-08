@@ -10,8 +10,8 @@
 #include <stdio.h>
 
 
-// TODO rethink stack_size
 #define STACK_SIZE (8 * 1048576)
+
 
 /* Different statuses the page can have */
 enum page_status
@@ -70,6 +70,9 @@ struct sup_page_entry
 
     /* palloc flags which are used when the frame is created */
     enum palloc_flags pflags;
+
+    /* locks changes in struct sup_page_entry */
+    struct lock page_lock;
 
     struct hash_elem h_elem;
   };

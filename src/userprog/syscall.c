@@ -72,6 +72,8 @@ syscall_handler (struct intr_frame *f UNUSED)
 
   validate_pointer(esp, esp);
 
+  thread_current()->syscall_esp = esp;
+
 
   /* syscall type int is stored at adress esp */
   int32_t syscall_type = *((int*)esp);
@@ -230,6 +232,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       }
     }
   //printf("DEBUG: Syscall_handler left \n");
+  thread_current()->syscall_esp = NULL;
 }
 
 
@@ -411,6 +414,7 @@ syscall_exit(const int exit_type){
   struct child_process* terminating_child = terminating_thread->child_process;
 
   if (terminating_child != NULL){
+    ASSERT(!lock_held_by_current_thread(&terminating_child->child_process_lock));
     lock_acquire(&terminating_child->child_process_lock);
     if (terminating_child->parent != -1){
       /* parent is still running -> has to store information */
@@ -467,6 +471,7 @@ syscall_write(int fd, const void *buffer, unsigned size, void *esp){
     if (file_ == NULL){
       returnvalue = 0;
     }else{
+      ASSERT(!lock_held_by_current_thread(&lock_filesystem));
       lock_acquire(&lock_filesystem);
       // TODO page faults here cause deadlock!
       returnvalue = file_write(file_, buffer, size);
@@ -518,6 +523,7 @@ syscall_read(int fd, void *buffer, unsigned size, void *esp){
     if (file_ == NULL){
       returnvalue = 0;
     }else{
+      ASSERT(!lock_held_by_current_thread(&lock_filesystem));
       lock_acquire(&lock_filesystem);
       // TODO page faults here cause deadlock!
       returnvalue = file_read(file_, buffer, size);
@@ -560,6 +566,7 @@ syscall_exec(const char *cmd_line, void *esp){
     return -1;
   }
 
+  ASSERT(!lock_held_by_current_thread(&current_child->child_process_lock));
   lock_acquire(&current_child->child_process_lock);
 
   while(current_child->successfully_loaded == NOT_LOADED){
@@ -587,6 +594,7 @@ syscall_create(const char *file_name, unsigned initial_size, void *esp){
   if (length > max_file_name)
     return false;
   load_and_pin_string(file_name, esp);
+  ASSERT(!lock_held_by_current_thread(&lock_filesystem));
   lock_acquire(&lock_filesystem);
   bool success = filesys_create(file_name, initial_size);
   lock_release(&lock_filesystem);
@@ -602,6 +610,7 @@ syscall_remove(const char *file_name, void *esp){
   if (length > max_file_name)
     return false;
   load_and_pin_string(file_name, esp);
+  ASSERT(!lock_held_by_current_thread(&lock_filesystem));
   lock_acquire(&lock_filesystem);
   bool success = filesys_remove(file_name);
   lock_release(&lock_filesystem);
@@ -616,6 +625,7 @@ int syscall_open(const char *file_name, void *esp){
   if (length > max_file_name)
     return -1;
   load_and_pin_string(file_name, esp);
+  ASSERT(!lock_held_by_current_thread(&lock_filesystem));
   lock_acquire(&lock_filesystem);
   struct file *new_file = filesys_open(file_name);
   if (new_file == NULL){
@@ -642,6 +652,7 @@ int syscall_filesize(int fd){
   if (file == NULL){
     return -1;
   }
+  ASSERT(!lock_held_by_current_thread(&lock_filesystem));
   lock_acquire(&lock_filesystem);
   unsigned size = file_length(file);
   lock_release(&lock_filesystem);
@@ -722,6 +733,7 @@ void syscall_seek(int fd, unsigned position){
   if (file == NULL){
     syscall_exit(-1);
   }
+  ASSERT(!lock_held_by_current_thread(&lock_filesystem));
   lock_acquire(&lock_filesystem);
   file_seek(file, position);
   lock_release(&lock_filesystem);
@@ -735,6 +747,7 @@ unsigned syscall_tell(int fd){
   if (file == NULL){
     syscall_exit(-1);
   }
+  ASSERT(!lock_held_by_current_thread(&lock_filesystem));
   lock_acquire(&lock_filesystem);
   unsigned pos = file_tell(file);
   lock_release(&lock_filesystem);
@@ -744,6 +757,7 @@ unsigned syscall_tell(int fd){
 
 /* Closes the file with filedescriptor fd */
 void syscall_close(int fd){
+  ASSERT(!lock_held_by_current_thread(&lock_filesystem));
   lock_acquire(&lock_filesystem);
   struct list_elem *element = get_list_elem(fd);
 
@@ -828,6 +842,7 @@ mapid_t syscall_mmap(int fd, void *vaddr, void *esp){
   if (!validate_mmap(fd, vaddr, esp))
     return -1;
   //printf("validate mmap okay\n");
+  ASSERT(!lock_held_by_current_thread(&lock_filesystem));
   lock_acquire(&lock_filesystem);
   struct file *open_file = get_file(fd);
   if (open_file == NULL){
@@ -899,6 +914,7 @@ void syscall_munmap (mapid_t mapping){
   /* get mmap entry from hash map and check if one is found */
   struct mmap_entry *mmap_entry = mmap_entry_lookup (thread, mapping);
   if (mmap_entry == NULL){
+    printf("mmap entry null in munmap\n");
     syscall_exit(-1);
   }
   

@@ -117,6 +117,7 @@ start_process (void *file_name_)
   struct thread *child_thread = thread_current();
   struct child_process *child_process = child_thread->child_process;
 
+  ASSERT(!lock_held_by_current_thread(&child_process->child_process_lock));
   lock_acquire(&child_process->child_process_lock);
 
   /* set load value of child_process after load is finished */
@@ -170,6 +171,7 @@ process_wait (pid_t child_tid)
 
   if (child != NULL){
     /* matching child was found */
+    ASSERT(!lock_held_by_current_thread(&child->child_process_lock));
     lock_acquire(&child->child_process_lock);
     
     /* check if this child_tid has already been waited for */
@@ -344,6 +346,7 @@ load (const char *file_name, void (**eip) (void), void **esp, char* argument_buf
 
   /* Open executable file. */
   // TODO think about if this lock can be safely removed with lazy loading
+  ASSERT(!lock_held_by_current_thread(&lock_filesystem));
   lock_acquire(&lock_filesystem);
   file = filesys_open (file_name);
   if (file == NULL) 
@@ -530,8 +533,11 @@ load_segment_not_lazy (struct file *file, off_t ofs, uint8_t *upage,
         printf("page could not be allocated in load_segment \n");
 
       struct sup_page_entry *sup_page_entry = vm_sup_page_lookup(thread, upage);
-      
+      lock_acquire(&sup_page_entry->page_lock);
+
       uint8_t *kpage = vm_frame_allocate(sup_page_entry, (PAL_USER), writable);
+
+
       if (kpage == NULL)
         return false;
 
@@ -539,6 +545,7 @@ load_segment_not_lazy (struct file *file, off_t ofs, uint8_t *upage,
       if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
         {
           vm_frame_free(kpage, upage);
+          lock_release(&sup_page_entry->page_lock);
           return false; 
         }
       memset (kpage + page_read_bytes, 0, page_zero_bytes);
@@ -549,13 +556,15 @@ load_segment_not_lazy (struct file *file, off_t ofs, uint8_t *upage,
       */
       sup_page_entry->status = PAGE_STATUS_LOADED;
       sup_page_entry->phys_addr = kpage;
-      /*
-      sup_page_entry->type = PAGE_TYPE_FILE;
+      sup_page_entry->pinned = false;
+      
       sup_page_entry->writable = writable;
       sup_page_entry->file = file;
       sup_page_entry->file_offset = ofs;
       sup_page_entry->read_bytes = page_read_bytes;
-      */
+      
+      install_page(sup_page_entry->vm_addr, kpage, writable);
+      lock_release(&sup_page_entry->page_lock);
 
       /* Advance. */
       ofs += PGSIZE;
@@ -628,14 +637,21 @@ bool faulty_esp(uintptr_t esp, uintptr_t min_addr){
 static bool
 setup_stack (void **esp, char *argument_buffer, int argcount) 
 {
+  uint8_t *kpage;
+  bool success = false;
+
+  struct thread *current_thread = thread_current();
   void *vaddr = (uint8_t *) PHYS_BASE - PGSIZE;
 
-  bool success = vm_grow_stack(vaddr);
-
-  struct sup_page_entry *sup_page_entry = vm_sup_page_lookup(thread_current(), vaddr);
-  sup_page_entry->pinned = true;
-  thread_current()->stack_page = sup_page_entry;
-  //printf("DEBUG: setup stack at vaddr: %p and phys_addr: %p\n", sup_page_entry->vm_addr, sup_page_entry->phys_addr);
+  success = vm_sup_page_allocate(vaddr, true);
+  struct sup_page_entry *sup_page_entry = vm_sup_page_lookup(current_thread, vaddr);
+  lock_acquire(&sup_page_entry->page_lock);
+  kpage = vm_frame_allocate (sup_page_entry, (PAL_USER | PAL_ZERO), true);
+  sup_page_entry->phys_addr = kpage;
+  sup_page_entry->status = PAGE_STATUS_LOADED;
+  sup_page_entry->type = PAGE_TYPE_STACK;
+  lock_release(&sup_page_entry->page_lock);
+  install_page(sup_page_entry->vm_addr, kpage, true);
 
   if (success) 
     {
@@ -723,6 +739,7 @@ uninstall_page (void* upage)
 struct child_process*
 get_child(pid_t pid){
   struct thread *current_thread = thread_current();
+  ASSERT(!lock_held_by_current_thread(&current_thread->child_list_lock));
   lock_acquire(&current_thread->child_list_lock);
   struct list *child_list = &(current_thread->child_list);
   if (list_empty (child_list)){

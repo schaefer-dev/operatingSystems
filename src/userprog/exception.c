@@ -158,6 +158,7 @@ page_fault (struct intr_frame *f)
 
   /* faulting at NULL outside user virtual adress space or writing to read only page */
   if ((fault_addr == NULL) || (!not_present) || (!is_user_vaddr(fault_addr))){
+    //printf("syscall_exit in page fault\n");
     syscall_exit(-1);
   }
 
@@ -167,7 +168,7 @@ page_fault (struct intr_frame *f)
   if (user == true){
     stack_pointer = f->esp;
   } else {
-    stack_pointer = NULL;
+    stack_pointer = thread_current()->syscall_esp;
   }
 
   struct sup_page_entry *sup_page_entry = vm_sup_page_lookup (thread_current(), fault_frame_addr);
@@ -176,12 +177,25 @@ page_fault (struct intr_frame *f)
     if ((fault_addr + 32 >= stack_pointer) && (fault_addr < PHYS_BASE) && (PHYS_BASE - STACK_SIZE <= fault_frame_addr)){
       vm_grow_stack(fault_frame_addr);
     } else {
-      syscall_exit(-1);
+      if (stack_pointer != NULL)
+        syscall_exit(-1);
+      bool lock_held_before = false;
+      if (lock_held_by_current_thread(&frame_lock)){
+        lock_release(&frame_lock);
+        bool lock_held_before = true;
+      printf("grow_stack in page fault start\n");
+      vm_grow_stack(fault_frame_addr);
+      printf("grow_stack in page fault finished\n");
+      if (lock_held_before)
+        lock_acquire(&frame_lock);
+      }
     }
 
   } else {
+      lock_acquire(&grow_stack_lock);
       vm_sup_page_load(sup_page_entry);
       /* unpin after loading finished */
-      sup_page_entry->pinned = false;
+      vm_sup_page_unpin(sup_page_entry);
+      lock_release(&grow_stack_lock);
   }
 }
