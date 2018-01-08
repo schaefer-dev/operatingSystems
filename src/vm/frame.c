@@ -235,11 +235,12 @@ void vm_evict_file(struct sup_page_entry *sup_page_entry, struct frame *frame){
   
   struct thread *thread = sup_page_entry->thread;
   bool dirty = pagedir_is_dirty(thread->pagedir, sup_page_entry->vm_addr);
-  if (dirty){
+  if (dirty || sup_page_entry->dirty){
     /* changed content has to be written to swap partition */
     block_sector_t swap_block = vm_swap_page(frame->phys_addr);
     sup_page_entry->status = PAGE_STATUS_SWAPPED;
     sup_page_entry->swap_addr = swap_block;
+    sup_page_entry->dirty = true;
   } else {
     /* nothing has changed, content can simply be loaded from file */
     sup_page_entry->status = PAGE_STATUS_NOT_LOADED;

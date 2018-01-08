@@ -113,6 +113,7 @@ vm_sup_page_allocate (void *vm_addr, bool writable){
   sup_page_entry->file_offset = 0;
   sup_page_entry->writable = writable;
   sup_page_entry->pinned = false;
+  sup_page_entry->dirty = false;
 
   hash_insert(&(thread_current()->sup_page_hashmap), &(sup_page_entry->h_elem));
 
@@ -139,6 +140,7 @@ vm_sup_page_file_allocate (void *vm_addr, struct file* file, off_t file_offset, 
   sup_page_entry->mmap_id=-1;
   sup_page_entry->writable = writable;
   sup_page_entry->pinned = false;
+  sup_page_entry->dirty = false;
 
   hash_insert(&(thread_current()->sup_page_hashmap), &(sup_page_entry->h_elem));
 
@@ -166,6 +168,7 @@ vm_sup_page_mmap_allocate (void *vm_addr, struct file* file, off_t file_offset,
   sup_page_entry->mmap_id = mmap_id;
   sup_page_entry->writable = writable;
   sup_page_entry->pinned = false;
+  sup_page_entry->dirty = false;
 
   hash_insert(&(thread_current()->sup_page_hashmap), &(sup_page_entry->h_elem));
 
