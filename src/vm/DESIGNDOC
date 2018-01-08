@@ -327,9 +327,55 @@ which swap slots are in use and which are free
 >> B2: When a frame is required but none is free, some frame must be
 >> evicted.  Describe your code for choosing a frame to evict.
 
+We use the clock algorithm to evict frames. In more detail:
+We got a static iterator which points to the next element in the frame
+list which will be considered to check for page eviction. This is 
+necessary to ensure that the algorithm starts at the point it stopped
+in the last iteration.
+In the eviction step we start at the mentioned iterator position and
+iterate until we find a page which access bit is not set.
+In order to do so we first check if the page is pinned. In the case
+that the page is pinned we move the iterator to the next element in 
+the list using vm_evict_page_next_iterator.(If we reach the end of the
+frame list the iterator is set to the begin of the list).
+In case of an unpinned page we take the page_lock of this page and
+check if the access bit is set. If it is set we set it to false and
+move to the next element and release the lock.
+Otherwise, the page can be evicted. This is done by checking the page
+type and calling the correct eviction function. A stack is evicted by
+vm_evict_stack which writes the page content to the swap partition and
+sets the status of the sup_page_entry to PAGE_STATUS_SWAPPED.
+A file is evicted using vm_evict_file. This function checks if the page
+is dirty and writes it to swap if necessary and sets the page status
+either to swapped or not loaded.
+A memory mapped file page is written back to the file if the page is dirty
+and the page status is set to not_loaded independent of the dirty bit.
+Independent of the page type the following happens:
+1.) The physical address of the page is set to NULL and the lock is released
+2.) We move the iterator to the next element in the list.
+3.) The frame is removed from the frame list.
+4.) The page is removed from the process pagedir using pagedir_clear_page
+5.) The physical page is freed using palloc_free_page
+6.) The struct frame is freed
+7.) A new physical page is allocated and its physical address is returned
+to vm_frame_allocate (vm_evict_page was called by vm_frame_allocate)
+
+The gloabal iterator is also moved if the frame it currently points to
+will be deleted (only possible using vm_frame_free) because in this case
+we check if the deleted frame is the current iterator frame and the move
+the iterator accordingly.
+
 >> B3: When a process P obtains a frame that was previously used by a
 >> process Q, how do you adjust the page table (and any other data
 >> structures) to reflect the frame Q no longer has?
+
+As already mentioned in this case we set the page status of the sup_page_entry
+of process Q to either swapped or not_loaded (depends on the dirty bit and the
+page type) and the phys_addr to NULL. Furthermore, the entry in the page
+directory of the corresponding thread is cleared.
+The frame itself is removed from the frame_list and the physical page is
+freed by using palloc_free_page and the struct frame is freed.
+Process P gets a new physical page which is allocated using palloc_get_page.
 
 >> B4: Explain your heuristic for deciding whether a page fault for an
 >> invalid virtual address should cause the stack to be extended into
