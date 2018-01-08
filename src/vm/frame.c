@@ -236,6 +236,7 @@ vm_evict_page(enum palloc_flags pflags){
         }
 
         iter_sup_page->phys_addr = NULL;
+        pagedir_clear_page(page_thread->pagedir, iter_sup_page->vm_addr);
         lock_release(&iter_sup_page->page_lock);
         /* frame is current itertion move iterator one step */
         vm_evict_page_next_iterator();
@@ -246,8 +247,6 @@ vm_evict_page(enum palloc_flags pflags){
             are placed in the swap partition 
         */
         palloc_free_page(iter_frame->phys_addr);
-
-        pagedir_clear_page(page_thread->pagedir, iter_sup_page->vm_addr);
 
         //printf("DEBUG: freeing iter_frame in evict start\n");
         free(iter_frame);
