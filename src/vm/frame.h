@@ -20,10 +20,6 @@ struct frame
     // for shared memory implementation, this will change into a list of sup_page_entries
     struct sup_page_entry *sup_page_entry;
 
-    // TODO check if this is needed
-    // thread which holds this frame to set the pagedir
-    //struct thread *thread;
-
     struct list_elem l_elem;
   };
 

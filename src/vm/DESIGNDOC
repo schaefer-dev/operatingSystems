@@ -106,7 +106,8 @@ struct sup_page_entry
     struct hash_elem h_elem;
   };
 
-- sup_page_entry: data strcuture to store suppplemental pages
+- sup_page_entry: data strcuture to store suppplemental pages, every threat 
+  has a hashmap of sup_page_entries
 
 - status: indicates the current status of the page (loaded, swapped, not_loaded)
 
@@ -164,9 +165,6 @@ struct frame
     // for shared memory implementation, this will change into a list of sup_page_entries
     struct sup_page_entry *sup_page_entry;
 
-    // thread which holds this frame to set the pagedir
-    //struct thread *thread;
-
     struct list_elem l_elem;
   };
 
@@ -175,9 +173,8 @@ struct frame
 Fields:
 - pyhs_addr: physical address of this frame (received by palloc_get_page)
 
-- sup_page_entry: page to which this frame belongs to
-
-- thread: thread which owns this frame
+- sup_page_entry: page to which this frame belongs to, necessary to be able
+  to uninstall this page on eviction
 
 - l_elem: list_elem to store frames in a list
 
@@ -190,7 +187,10 @@ In frame.c:
 In thread.h:
 
 - struct hash sup_page_hashmap: hashmap to store all supplemental pages of
-a process
+a thread
+
+- void* syscall_esp: field to store the esp whenever a syscall occurs, to
+be able to access it during a page fault.
 
 
 ---- ALGORITHMS ----
@@ -199,40 +199,47 @@ a process
 >> if any, that contains the data of a given page.
 
 If the page is already loaded the frame exists and the access to the frame
-succeed.
+succeeds using the pagedir of the thread which links the virtual adress
+to the corresponding physical adress where this frame is currently stored.
+
 If a page fault occurs:
 1.) We search for a sup_page_entry in exception.c using vm_sup_page_lookup
 with the current thread and the virtual address which casued the page fault,
-however this address is rounded down using pg_round_down.
+however this address is rounded down using pg_round_down to find the page
+in which this virtual adress is contained.
 
-case 1: the frame was not found
+case 1: no supplemental page for this virtual adress found
 2.1.) We check if the condition for stack_growth is fulfilled and calls 
 vm_grow_stack if the condition holds. This function acquires the 
-grow_stack_lock and creates a new sup_page_entry using vm_sup_page_allocate.
+grow_stack_lock and creates a new sup_page_entry of type stack using 
+vm_sup_page_allocate.
 In the next step we acquire the lock of the newly generated sup_page_entry
 and call vm_frame_allocate to get a physical page. Afterwards the held locks
 are released.
 
-case 2: the frame was found
+case 2: supplemental page for this virtual adress found
 2.2.) We call vm_sup_page_load on the found sup_page_entry. This function first
-acquires the page_lock of this sup_page_entry and pins the page. In the next
-step we switch over the status of the page. If the page is already laoded we 
-simply release the lock and return b.c. the page is already loaded. 
+acquires the page_lock of this sup_page_entry and pins the page, which avoids 
+that it can be accessed in a eviction during the loading process. 
 If the status indicates the page is swapped we call vm_load_swap on this
 sup_page_entry to load the page. (This will be explained in more detail later
 on).
-If the page is not loaded we call vm_load_file on this sup_page_entry
-(b.c. a stack is either loaded or swapped). 
+If the page is not loaded or swapped we call vm_load_file on this sup_page_entry
 
-3.2.)
+3.2.) Loading Process:
 A page/frame to write the data in will be allocated using vm_frame_allocate.
-This function tries to allocate a using palloc_get_page. If this physical 
+Palloc_get_page will try to acquire a free page first. If this physical 
 address is NULL we need to evict a page by calling vm_evict_page (explained 
-in more detail later on) which returns a physical address.
-After receiving a physical address we set it in the sup_page_entry and create
-a new struct frame and insert it into the frame list.
-After receiving a frame we read the data from our file to the frame/physical
-address and release the lock.
+in more detail later on) which returns a physical address, which is now free.
+After receiving a physical address we save it in the sup_page_entry and create
+a new struct frame which is linked to this sup_page now and insert it into the 
+frame list.
+After receiving the frame we read the data from our file to the frame/physical
+address release the locks. 
+Afterwards the page will be installed in the current thread using 
+install_page. This will make sure that the thread can now use this information.
+During the entire loading process, the frame is pinned which makes it impossible
+to be evicted during the loading process.
 
 3.3.) 
 The instruction which caused the page fault will be executed again.
@@ -241,31 +248,42 @@ The instruction which caused the page fault will be executed again.
 >> kernel and user virtual addresses that alias a single frame, or
 >> alternatively how do you avoid the issue?
 
-//TODO rework
+coordinating these accesses is not important because we did not implement
+shared memory. We just used the provided functions by pagedir.
 
-In page fault the kernel virtual addresses can only only be accessed 
-in case of a stack growth is needed. To handle this case we save the
-current stack pointer in the current thread every times syscall is done.
-With this approach we can get the current stack pointer from the thread
-and call stack growth if it is needed.
-In all other cases we avoid kernel addresses in all cases by checking
-if the all accesses are legal user acccesses in every single syscall.
-To do so we check the esp, and validate the complete buffer and strings.
-In order to do so we check if the address is in user virtual memory and
-if there already exists a sup_page_entry. Furthermore, we load and pin 
-the pages in the start of each syscall and unpin the pages when the
-syscall ends.
+Special Design for Kernel Page faults:
+To avoid issues when handling a page fault which occured in kernel We
+make sure to save the ESP whenever a syscall occurs. This is important
+to make sure that we are able to access the stack pointer to verify
+if a stack_grow is valid. After the syscall returnes we reset this
+saved ESP (which is stored inside the thread) to null again to make
+sure that it is only used whenever a page fault occurs during a syscall.
+
+In all other cases we completely avoid page faults in the kernel
+by making sure that all accesses are legal user adresses in every
+single syscall. TO do so we check the esp and validate all buffers 
+and strings entirely. In order to do so we check if the address is 
+in user virtual memory and if there already exists a sup_page_entry. 
+Furthermore, we load and pin all the pages in the start of each 
+syscall and unpin the pages when the syscall ends. This ensures
+that none of these pages can be evicted while the syscall is still
+running. This way we can avoid all page faults (except for stack_grow)
+entirely.
 
 ---- SYNCHRONIZATION ----
 
 >> A4: When two user processes both need a new frame at the same time,
 >> how are races avoided?
 
-We got a global frame_lock avoids races. In more detail, there is only
-one possibility to get a frame by calling vm_frame_allocate. This function
-directly acquires the frame_lock and holds it until it returns. 
-Within this function vm_evict_page could be called but this function can
-only be called if the frame_lock is held by the current thread.
+We have a global frame_lock which avoids races on our entire frame
+structure. This is unavoidable because the frame list is global, and
+used by all running threads.
+In more detail, there is only one possibility to get a frame 
+(by calling vm_frame_allocate). 
+This function directly acquires the frame_lock and holds it until it returns. 
+Only within this function vm_evict_page could be called which assures
+that for every eviction the frame lock will be held (we additionally
+assert this).
 This ensures that only one user can get a new frame at the same time.
 Furthermore, there is only one function which deletes frames, called
 vm_frame_free which also acquires the lock at the very beginning.
@@ -284,25 +302,29 @@ case of a process exit, however this function is also efficiently supported
 if the hashmap will be deleted.
 Furthermore we need the page_lock in each sup_page because the status of a 
 page could change during a page eviction which is done by a different thread.
-To ensure that all writes and reads of fields in the sup_page_entry this lock
-is needed.
-Furthermore, a supplemental page needs to store the current state and the type
-to handle the page correctly. Since 3 possibile states and 3 types are possible
-we decided to create enums to avoid using different structs or many booleans.
-The virtual address and file information have to be stored to load the page 
-and identify the pages. The mmap_id is also needed to handle munmap.
-Pinned is used to prevent eviction of this page. This is done to avoid 
+To ensure that all writes and reads of fields in the sup_page_entry are
+synchroized correctly this lock is necessary.
+Furthermore, a supplemental page needs to store its current state and 
+its type to handle the page correctly. Since there are 3 possibile states 
+and 3 types we decided to use enums to avoid using different structs or 
+many boolean values.
+The corresponding virtual address and file information have to be stored 
+to load the correct page lazily on access.
+The mmap_id field is needed to handle munmap on sup_pages of type MMAP.
+The boolean pinned is used to prevent eviction of this page during a loading
+process and during syscall (as explained above). This is done to avoid 
 page faults in kernel while accessing user memory (e.g. buffer). Because
-these kind of page faults cannot be resolved (e.g. because of held locks).
+these kind of page faults cannot be easilily resolved (e.g. because of 
+held locks).
 
-Frames are stored in a list because we often need to iterate over all used
-frames (see page eviction). Furthermore, we often add and delete frames,
-this is also efficient using lists and we don't need efficient lookups
-on frames.
+Frames are stored in a list because we will often iterate over all allocated
+frames during a page eviction. Furthermore, we often add and delete frames,
+this is also efficient using lists and we don't need any efficient lookups
+on frames on some key, so using a hashmap would be unnecessary.
 Frames of course have to store their location (physical address) and the
-corresponding page (sup_page_entry). The frame_lock is needed to avoid
-that races occur in case of 2 user processes need a new frame at the same
-time (see above).
+corresponding sup_page (sup_page_entry). The frame_lock is needed to avoid
+races in case of 2 user processes trying to allocate a new frame at the
+same time.
 
 		       PAGING TO AND FROM DISK
 		       =======================
@@ -322,7 +344,6 @@ in the swap-block
 - static uint32_t SECTORS_FOR_PAGE = PGSIZE / BLOCK_SECTOR_SIZE:
  Number of sectors necessary to store an entire page
 
-/* value true -> free swap */
 - static struct bitmap *swap_free_bitmap: bitmap used to indicate
 which swap slots are in use and which are free
 
@@ -334,36 +355,39 @@ which swap slots are in use and which are free
 >> evicted.  Describe your code for choosing a frame to evict.
 
 We use the clock algorithm to evict frames. In more detail:
-We got a static iterator which points to the next element in the frame
+We save a global iterator which points to the next element in the frame
 list which will be considered to check for page eviction. This is 
 necessary to ensure that the algorithm starts at the point it stopped
 in the last iteration.
 In the eviction step we start at the mentioned iterator position and
-iterate until we find a page which access bit is not set.
+iterate until we find a valid page to evict.
 In order to do so we first check if the page is pinned. In the case
 that the page is pinned we move the iterator to the next element in 
-the list using vm_evict_page_next_iterator.(If we reach the end of the
+the list using vm_evict_page_next_iterator (If we reach the end of the
 frame list the iterator is set to the begin of the list).
 In case of an unpinned page we take the page_lock of this page and
-check if the access bit is set. If it is set we set it to false and
-move to the next element and release the lock.
+check if the access bit is set. If it is set we set it to false,  release
+the lock and move to the next element using vm_evict_page_next_iterator.
 Otherwise, the page can be evicted. This is done by checking the page
-type and calling the correct eviction function. A stack is evicted by
-vm_evict_stack which writes the page content to the swap partition and
-sets the status of the sup_page_entry to PAGE_STATUS_SWAPPED.
-A file is evicted using vm_evict_file. This function checks if the page
-is dirty and writes it to swap if necessary and sets the page status
-either to swapped or not loaded.
-A memory mapped file page is written back to the file if the page is dirty
-and the page status is set to not_loaded independent of the dirty bit.
-Independent of the page type the following happens:
-1.) The physical address of the page is set to NULL and the lock is released
-2.) We move the iterator to the next element in the list.
-3.) The frame is removed from the frame list.
-4.) The page is removed from the process pagedir using pagedir_clear_page
-5.) The physical page is freed using palloc_free_page
-6.) The struct frame is freed
-7.) A new physical page is allocated and its physical address is returned
+type and calling the correct eviction function. 
+A) A stack is evicted using vm_evict_stack which writes the page content 
+   to the swap partition and sets the status of the sup_page_entry to 
+   PAGE_STATUS_SWAPPED.
+B) A file is evicted using vm_evict_file. This function checks if the page
+   is dirty and writes it to swap if necessary and sets the page status
+   either to swapped or not loaded.
+C) A memory mapped file page is written back to the file if the page is dirty
+   and the page status is set to not_loaded independent of the dirty bit.
+
+  Independent of the page type the following happens:
+1.) The physical address of the page is set to NULL
+2.) The page is removed from the process pagedir using pagedir_clear_page
+3.) We relase the sup_page lock
+4.) The frame is removed from the frame list.
+5.) We move the iterator to the next element in the list.
+6.) The physical page is freed using palloc_free_page
+7.) The struct frame is freed
+8.) A new physical page is allocated and its physical address is returned
 to vm_frame_allocate (vm_evict_page was called by vm_frame_allocate)
 
 The gloabal iterator is also moved if the frame it currently points to
@@ -378,16 +402,17 @@ the iterator accordingly.
 As already mentioned in this case we set the page status of the sup_page_entry
 of process Q to either swapped or not_loaded (depends on the dirty bit and the
 page type) and the phys_addr to NULL. Furthermore, the entry in the page
-directory of the corresponding thread is cleared.
+directory of the corresponding thread is cleared, this will ensure that thread
+Q no longer has access to this frame.
 The frame itself is removed from the frame_list and the physical page is
 freed by using palloc_free_page and the struct frame is freed.
 Process P gets a new physical page which is allocated using palloc_get_page.
+This page will only be installed in the pagedir of P, which makes it 
+impossible for any other thread to access it.
 
 >> B4: Explain your heuristic for deciding whether a page fault for an
 >> invalid virtual address should cause the stack to be extended into
 >> the page that faulted.
-
-// TODO remember to set stack_size in file to nicer formated number (hex)
 
 If a page fault occurs and there is no supplemental page table which
 contains the requested virtual adress we have to check if a stack_growth
@@ -418,8 +443,8 @@ It is impossible for circularities to occur because the frame lock
 is always acquired before any of the sup_page locks except for 1 special case:
 During the eviction we already hold the lock for the sup page for which
 we are trying to get a physical page. Because each frame only corresponds
-one page and one page corresponds to at most one frame, there cannot be
-a frame contained in the frame list which corresponds to the sup_page of
+one sup_page and one sup_page corresponds to at most one frame, there cannot
+be a frame contained in the frame list which corresponds to the sup_page of
 which we already hold the lock when the eviction starts. Because we can 
 only acquire the locks of sup pages which have currently loaded frames 
 during an eviction process. This means that it is impossible to achieve
@@ -431,13 +456,13 @@ a circularity during the eviction.
 >> between P evicting Q's frame and Q faulting the page back in?
 
 The eviction process will always hold the frame_lock. As soon as the Q's
-Page will be uninstalled a page fault in Q will occur and Q will try to
-load the evicted page again. This loading also has to acquire the frame_lock.
-This means that it can only start after the eviction process is 
-completed entirely. The reading and changing of values (e.g. status of the 
-page changes from PAGE_STATUS_LOADED to PAGE_STATUS_SWAPPED/NOT_LOADED) is 
-additionally synchronized to avoid data races (explained in more detail
-in other answers). 
+Page will be uninstalled a page fault in Q will occur whenever Q tries to read
+or write from the page and Q will try to load the evicted page again. 
+This loading also has to acquire the frame_lock. This means that it can 
+only start after the eviction process is  completed entirely. 
+The reading and changing of values (e.g. status of the page changes from 
+PAGE_STATUS_LOADED to PAGE_STATUS_SWAPPED/NOT_LOADED) is  additionally 
+synchronized to avoid data races (explained in more detail in other answers).
 
 >> B7: Suppose a page fault in process P causes a page to be read from
 >> the file system or swap.  How do you ensure that a second process Q
@@ -456,7 +481,7 @@ loading page can never be evicted!
 >> into physical memory, or do you use some other design?  How do you
 >> gracefully handle attempted accesses to invalid virtual addresses?
 
-In syscall we make sure to load AND pin all neccessary data (strings/
+In syscall we make sure to load AND pin all necessary data (strings/
 buffers) during the verification of these structures. This assures
 that these strings/buffers can not be evicted during the syscall because
 evict will not consider any pinned pages (important: setting pinned
@@ -478,16 +503,14 @@ so we can check the conditions to perform a stack_growth.
 >> where your design falls along this continuum and why you chose to
 >> design it this way.
 
-// TODO maybe move frame locking to be only around inserting into frame list and around free/evict
-// TODO warnings
 We offer very efficient locking. It is quite clear that we have to acquire
 and hold the frame_lock during the entire frame allocation process (which
 might contain an evict process) and also during the frame free process.
 This is essential, because all threads work on the same list of Frames, and
 e.g. Frames which are not yet completely loaded are not allowed to be evicted
 etc.
-The other lock which is absolutely neccessary is a lock which protects
-all the fields of a sup_page. This might not seem neccessary at first
+The other lock which is absolutely necessary is a lock which protects
+all the fields of a sup_page. This might not seem necessary at first
 glance but not only the thread to which the sup_page belongs writes
 into its fields but also other threads which might access this sup_page
 during an eviction process will read (and potentially change) values of 
@@ -522,7 +545,7 @@ struct mmap_entry
     struct hash_elem h_elem; 
   };
 
-- struct mmap_entry: struct to store all needed information to manage
+- struct mmap_entry: struct to store all necessary information to manage
 mmaped files (in addition to sup_page_entry)
 
 - start_vaddr: stores the virtual address of the first sup_page_entry 
@@ -535,6 +558,8 @@ the memory mapped file
 struct mmap_entry belongs to (also used as key of hashmap)
 
 - h_elem: hash_elem to store mmap_entry in a hashmap to ensure fast lookups
+
+In struct thread:
 
 - struct hash mmap_hashmap: hashmap to store all mmap file entries (mmap_entry)
  currently allocated by the process
@@ -549,24 +574,28 @@ struct mmap_entry belongs to (also used as key of hashmap)
 
 Memory mapped files are handled in the same way as all other pages are handled.
 If a file is memory mapped using mmap we allocate a sup_page_entry struct for
-each needed page (code to create all needed sup_page_entry structs similar
+each needed page (code to create all needed sup_page_entry structs is similar
 to load_segment). In order to do so we reopen the file, compute the offset and
 read bytes and get a unique mmap id. This is used to create all sup_page_entry
 structs with page type PAGE_TYPE_MMAP. Furthermore a mmap_entry is created to
 perform the munmap function.
 If a page fault happens and it is caused by an mmap file a sup_page_entry 
-already exists and we found it. Afterwards we call vm_load_page with this
+will already exist and be found. Afterwards we call vm_load_page with this
 sup_page_entry. Since a mmap file can only be loaded or unloaded but never
 swapped we enter the PAGE_STATUS_NOT_LOADED case and call vm_load_file 
-because it doesn't matter if we load a normal file or a mmaped file.
+because there is no difference necessarry in loading a "normal file" or 
+a mmaped file in out implementation.
 
-A page eviction on mmaped files is different to files and the stack.
-A stack page is always swapped to the swap partition the same holds for
-a dirty file sup_page_entry (file which is not dirty doesn't have to be
-swapped because it can simply be loaded from the file).
-A memory mapped file is written back to the file if the page was dirty.
-Independent of the dirty bit the status is set to not_loaded becuase the 
-page has to be loaded from the file in both cases (if it is needed again).
+A page eviction on mmaped files is different to the page fault caused by
+"normal files" or the stack.
+A stack page is always swapped to the swap partition wheneve it is evicted.
+The same holds for a dirty sup_page_entry of type file (file which is not 
+dirty doesn't have to be swapped because it can simply be loaded from the 
+file again, just like the first load).
+A memory mapped file is written back to the file during eviction if the page 
+was dirty. Independent of the dirty bit the status is set to not_loaded 
+becuase the page has to be loaded from the file whenever it is accessed
+again.
 
 
 >> C3: Explain how you determine whether a new file mapping overlaps
@@ -580,6 +609,11 @@ memory address. If we find a sup_page_entry at the address or the address
 overlaps with the stack pointer or the address is not in user virtual
 address space the mmap returns with -1 and no pages are allocated.
 
+(In case the question refers to overlapping of frames, this is obviously
+impossible because each sup_page_entry belonging to a MMAP file refers
+to at most one single frame which is allocated using vm_frame_allocate,
+which obviously never creates overlappings (explained in detail above))
+
 ---- RATIONALE ----
 
 >> C4: Mappings created with "mmap" have similar semantics to those of
@@ -589,9 +623,9 @@ address space the mmap returns with -1 and no pages are allocated.
 >> implementation either does or does not share much of the code for
 >> the two situations.
 
-Memory mapped files and normal files are loaded in the same way with the
-same function, because there is no difference in the loading process in
-both cases the content is read to the page at a given offset.
+Memory mapped files and normal (executable) files are loaded in the same 
+way with the same function, because there is no difference in the loading 
+process in both cases the content is read to the page at a given offset.
 Furthermore, both types are stored in the same sup_page_entry struct because
 only the page type differs (same struct but different type).
 In order to share as much code as possible vm_load_page checks the status
@@ -606,9 +640,11 @@ vm_write_mmap_back (checks if page is dirty) only in case of mmaped files.
 Furthermore, there different code to delete sup_page_entry structs in case
 of process termination. Because only in case of a memory mapped file the
 content is written back to the file using vm_write_mmap_back.
-So basically code which can be shared is shared since it does not make
-sense to duplicate code if the behavior is exactly the same only some
-additional code (e.g. vm_write_mmap_back) is added.
+So the only differences are:
+1) writing back to the file in case of MMAP
+2) writing to swap in case of FILE
++ the additional MMAP-entry struct which is created for all MMAPs and does
+not exist for regular (executable) files.
 
 
 			   SURVEY QUESTIONS
