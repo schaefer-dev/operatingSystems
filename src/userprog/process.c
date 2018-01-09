@@ -493,92 +493,6 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
   return true;
 }
 
-/* Loads a segment starting at offset OFS in FILE at address
-   UPAGE.  In total, READ_BYTES + ZERO_BYTES bytes of virtual
-   memory are initialized, as follows:
-
-        - READ_BYTES bytes at UPAGE must be read from FILE
-          starting at offset OFS.
-
-        - ZERO_BYTES bytes at UPAGE + READ_BYTES must be zeroed.
-
-   The pages initialized by this function must be writable by the
-   user process if WRITABLE is true, read-only otherwise.
-
-   Return true if successful, false if a memory allocation error
-   or disk read error occurs. */
-static bool
-load_segment_not_lazy (struct file *file, off_t ofs, uint8_t *upage,
-              uint32_t read_bytes, uint32_t zero_bytes, bool writable) 
-{
-  ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
-  ASSERT (pg_ofs (upage) == 0);
-  ASSERT (ofs % PGSIZE == 0);
-
-  file_seek (file, ofs);
-  while (read_bytes > 0 || zero_bytes > 0) 
-    {
-      /* Calculate how to fill this page.
-         We will read PAGE_READ_BYTES bytes from FILE
-         and zero the final PAGE_ZERO_BYTES bytes. */
-      size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
-      size_t page_zero_bytes = PGSIZE - page_read_bytes;
-
-      /* Get a page of memory. */
-      bool success = vm_sup_page_allocate(upage, writable);
-
-      struct thread *thread = thread_current();
-
-      if (!success)
-        printf("page could not be allocated in load_segment \n");
-
-      struct sup_page_entry *sup_page_entry = vm_sup_page_lookup(thread, upage);
-      lock_acquire(&sup_page_entry->page_lock);
-
-      uint8_t *kpage = vm_frame_allocate(sup_page_entry, (PAL_USER), writable);
-
-
-      if (kpage == NULL)
-        return false;
-
-      /* Load this page. */
-      if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
-        {
-          vm_frame_free(kpage, upage);
-          lock_release(&sup_page_entry->page_lock);
-          return false; 
-        }
-      memset (kpage + page_read_bytes, 0, page_zero_bytes);
-
-      /* TODO one of these lines cause page-linear to fail observe why!
-         surprising because swapping/evicting should be the same
-         regardless of the page being evicted like a swap or file
-      */
-      sup_page_entry->status = PAGE_STATUS_LOADED;
-      sup_page_entry->phys_addr = kpage;
-      sup_page_entry->pinned = false;
-      
-      sup_page_entry->writable = writable;
-      sup_page_entry->file = file;
-      sup_page_entry->file_offset = ofs;
-      sup_page_entry->read_bytes = page_read_bytes;
-      
-      install_page(sup_page_entry->vm_addr, kpage, writable);
-      lock_release(&sup_page_entry->page_lock);
-
-      /* Advance. */
-      ofs += PGSIZE;
-      read_bytes -= page_read_bytes;
-      zero_bytes -= page_zero_bytes;
-      upage += PGSIZE;
-    }
-
-  return true;
-}
-
-
-
-
 
 /* Loads a segment starting at offset OFS in FILE at address
    UPAGE.  In total, READ_BYTES + ZERO_BYTES bytes of virtual
@@ -608,12 +522,12 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
       /* Add page to supplemental page table */
-      struct sup_page_entry *sup_page_entry = vm_sup_page_file_allocate (upage, file, ofs, page_read_bytes, writable);
+      struct sup_page_entry *sup_page_entry = vm_sup_page_file_allocate (
+              upage, file, ofs, page_read_bytes, writable);
 
       ASSERT(sup_page_entry != NULL);
 
       /* Advance. */
-      // TODO: page_read_bytes is uint32_t BUT ofs is int32_t !!!!!!! broken
       ofs += PGSIZE;
       read_bytes -= page_read_bytes;
       zero_bytes -= page_zero_bytes;
@@ -644,7 +558,8 @@ setup_stack (void **esp, char *argument_buffer, int argcount)
   void *vaddr = (uint8_t *) PHYS_BASE - PGSIZE;
 
   success = vm_sup_page_allocate(vaddr, true);
-  struct sup_page_entry *sup_page_entry = vm_sup_page_lookup(current_thread, vaddr);
+  struct sup_page_entry *sup_page_entry = 
+        vm_sup_page_lookup(current_thread, vaddr);
   lock_acquire(&sup_page_entry->page_lock);
   kpage = vm_frame_allocate (sup_page_entry, (PAL_USER | PAL_ZERO), true);
   sup_page_entry->phys_addr = kpage;

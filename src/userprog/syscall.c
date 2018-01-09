@@ -53,14 +53,13 @@ void unpin_string(const void *buffer);
 void load_and_pin_buffer(const void *buffer, unsigned size, void *esp);
 void unpin_buffer(const void *buffer, unsigned size);
 
-// TODO TODO TODO TODO Refactor ESP passing through everything
-
 void
 syscall_init (void) 
 {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
   lock_init (&lock_filesystem);
 }
+
 /* takes care of reading arguments and passing them to the correct syscall
    function */
 static void
@@ -77,7 +76,6 @@ syscall_handler (struct intr_frame *f UNUSED)
 
   /* syscall type int is stored at adress esp */
   int32_t syscall_type = *((int*)esp);
-  //printf("DEBUG: Syscall_handler started with type %i\n", syscall_type);
 
   switch (syscall_type)
     {
@@ -129,11 +127,9 @@ syscall_handler (struct intr_frame *f UNUSED)
 
     case SYS_OPEN:
       {
-        //printf("DEBUG: Syscall OPEN start\n");
         char *file_name= *((char**) read_argument_at_index(f,0));
         validate_pointer(file_name, esp);
         f->eax = syscall_open(file_name, esp);
-        //printf("DEBUG: Syscall OPEN end\n");
         break;
       }
 
@@ -146,25 +142,21 @@ syscall_handler (struct intr_frame *f UNUSED)
 
     case SYS_READ:
       {
-        //printf("DEBUG: Syscall READ start\n");
         int fd = *((int*)read_argument_at_index(f,0)); 
         void *buffer = *((void**)read_argument_at_index(f,sizeof(int))); 
         unsigned size = *((unsigned*)read_argument_at_index(f,2*sizeof(int))); 
         int returnvalue = syscall_read(fd, buffer, size, esp);
         f->eax = returnvalue;
-        //printf("DEBUG: Syscall READ end\n");
       }
       break;
 
     case SYS_WRITE:
       {
-        //printf("DEBUG: Syscall WRITE start\n");
         int fd = *((int*)read_argument_at_index(f,0)); 
         void *buffer = *((void**)read_argument_at_index(f,sizeof(int))); 
         unsigned size = *((unsigned*)read_argument_at_index(f,2*sizeof(int))); 
         int returnvalue = syscall_write(fd, buffer, size, esp);
         f->eax = returnvalue;
-        //printf("DEBUG: Syscall WRITE start\n");
         break;
       }
 
@@ -192,17 +184,17 @@ syscall_handler (struct intr_frame *f UNUSED)
 
     case SYS_MMAP:
       {
-	int fd = *((int*)read_argument_at_index(f,0));
-	void *addr = *((void**)read_mmap_argument_at_index(f,sizeof(int)));
-	f->eax = syscall_mmap(fd, addr, f->esp);
-	break;
+        int fd = *((int*)read_argument_at_index(f,0));
+        void *addr = *((void**)read_mmap_argument_at_index(f,sizeof(int)));
+        f->eax = syscall_mmap(fd, addr, f->esp);
+        break;
       }
 
     case SYS_MUNMAP:
       {
-	int mapping = *((int*)read_argument_at_index(f,0)); 
-	syscall_munmap(mapping);
-	break;
+        int mapping = *((int*)read_argument_at_index(f,0)); 
+        syscall_munmap(mapping);
+        break;
       }
 
     case SYS_CHDIR:
@@ -231,7 +223,6 @@ syscall_handler (struct intr_frame *f UNUSED)
         break;
       }
     }
-  //printf("DEBUG: Syscall_handler left \n");
   thread_current()->syscall_esp = NULL;
 }
 
@@ -241,13 +232,8 @@ syscall_handler (struct intr_frame *f UNUSED)
 void
 validate_pointer(const void *pointer, void *esp){
   struct thread *thread = thread_current();
-	// TODO: check if this line can be removed
-  //uint32_t *pagedir = thread->pagedir;
   void *frame_pointer = pg_round_down(pointer);
   if (pointer == NULL || !is_user_vaddr(pointer)){
-    //if (pagedir_get_page(pagedir, pointer)==NULL)
-      //printf("DEBUG: Validate pointer not found in pagedir");
-      //printf("DEBUG: Validate pointer fail in syscall\n");
     syscall_exit(-1);
   }
   if (vm_sup_page_lookup(thread, frame_pointer) == NULL)
@@ -260,16 +246,12 @@ validate_pointer(const void *pointer, void *esp){
    context */
 void
 validate_buffer(const void *buffer, unsigned size, void *esp){
-  //printf("DEBUG: Validate buffer start in syscall\n");
   unsigned i = 0;
   const char* buffer_iter = buffer;
-	// TODO: check if this line can be removed
-  //struct thread *thread = thread_current();
   while (i < (size)){
     validate_pointer(buffer_iter + i, esp);
     i += 1;
   }
-  //printf("DEBUG: Validate buffer end in syscall\n");
 }
 
 
@@ -277,7 +259,6 @@ validate_buffer(const void *buffer, unsigned size, void *esp){
    context, otherwise returns length of string */
 int
 validate_string(const char *buffer, void *esp){
-  //printf("DEBUG: Validate string start in syscall\n");
   int length = 0;
   const char* buffer_iter = buffer;
   validate_pointer(buffer_iter, esp);
@@ -290,11 +271,10 @@ validate_string(const char *buffer, void *esp){
     validate_pointer(buffer_iter, esp);
   }
 
-  //printf("DEBUG: Validate string end in syscall\n");
   return length;
 }
 
-/* TODO this should be done more efficiently! */
+/* load and pin the sup_pages of this buffer */
 void
 load_and_pin_buffer(const void *buffer, unsigned size, void *esp){
   void *last_vm_addr = NULL;
@@ -308,7 +288,8 @@ load_and_pin_buffer(const void *buffer, unsigned size, void *esp){
       continue;
     }
     last_vm_addr = vm_addr;
-    if ((buffer_iter + 32 >= esp) && (buffer_iter < PHYS_BASE) && (PHYS_BASE - STACK_SIZE <= vm_addr)){
+    if ((buffer_iter + 32 >= esp) && (buffer_iter < PHYS_BASE) && 
+          (PHYS_BASE - STACK_SIZE <= vm_addr)){
       vm_grow_stack(vm_addr);
     }
     vm_sup_page_load_and_pin(vm_sup_page_lookup(thread_current(), vm_addr));
@@ -316,7 +297,7 @@ load_and_pin_buffer(const void *buffer, unsigned size, void *esp){
   }
 }
 
-/* TODO this should be done more efficiently! */
+/* unpin the sup_pages of this buffer */
 void
 unpin_buffer(const void *buffer, unsigned size){
   void *last_vm_addr = NULL;
@@ -336,7 +317,7 @@ unpin_buffer(const void *buffer, unsigned size){
   }
 }
 
-/* TODO this should be done more efficiently! */
+/* load and pin the sup_pages of this string */
 void
 load_and_pin_string(const void *buffer, void *esp){
   void *last_vm_addr = NULL;
@@ -352,7 +333,8 @@ load_and_pin_string(const void *buffer, void *esp){
       continue;
     }
     last_vm_addr = vm_addr;
-    if ((buffer_iter + 32 >= esp) && (buffer_iter < PHYS_BASE) && (PHYS_BASE - STACK_SIZE <= vm_addr)){
+    if ((buffer_iter + 32 >= esp) && (buffer_iter < PHYS_BASE) && 
+          (PHYS_BASE - STACK_SIZE <= vm_addr)){
       vm_grow_stack(vm_addr);
     }
     vm_sup_page_load_and_pin(vm_sup_page_lookup(thread_current(), vm_addr));
@@ -361,7 +343,7 @@ load_and_pin_string(const void *buffer, void *esp){
 
 }
 
-/* TODO this should be done more efficiently! */
+/* unpin the sup_pages of this string */
 void
 unpin_string(const void *buffer){
   void *last_vm_addr = NULL;
@@ -380,7 +362,6 @@ unpin_string(const void *buffer){
     vm_sup_page_unpin(vm_sup_page_lookup(thread_current(), vm_addr));
     buffer_iter += 1;
   }
-  //printf("DEBUG: unpinning string finished\n");
 }
 
 
@@ -471,9 +452,7 @@ syscall_write(int fd, const void *buffer, unsigned size, void *esp){
     if (file_ == NULL){
       returnvalue = 0;
     }else{
-      ASSERT(!lock_held_by_current_thread(&lock_filesystem));
       lock_acquire(&lock_filesystem);
-      // TODO page faults here cause deadlock!
       returnvalue = file_write(file_, buffer, size);
       lock_release(&lock_filesystem);
     }
@@ -519,13 +498,10 @@ syscall_read(int fd, void *buffer, unsigned size, void *esp){
   else{
     struct file *file_ = get_file(fd);
     
-    // check if file NULL
     if (file_ == NULL){
       returnvalue = 0;
     }else{
-      ASSERT(!lock_held_by_current_thread(&lock_filesystem));
       lock_acquire(&lock_filesystem);
-      // TODO page faults here cause deadlock!
       returnvalue = file_read(file_, buffer, size);
       lock_release(&lock_filesystem);
     }
