@@ -9,7 +9,7 @@
 #include "threads/synch.h"
 #include <stdio.h>
 
-
+/* maximum size of a stack (8 Megabytes) -> 8 * (2^20) */
 #define STACK_SIZE (8 * 1048576)
 
 
@@ -78,27 +78,39 @@ struct sup_page_entry
   };
 
 unsigned hash_vm_sup_page(const struct hash_elem *sup_p_, void *aux UNUSED);
-bool hash_compare_vm_sup_page(const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED);
+
+bool hash_compare_vm_sup_page(const struct hash_elem *a_, 
+    const struct hash_elem *b_, void *aux UNUSED);
+
 void vm_sup_page_hashmap_close(struct thread *thread);
 
 void vm_sup_page_init(struct thread *thread);
+
 bool vm_grow_stack(void *fault_frame_addr);
 
 struct sup_page_entry* vm_sup_page_lookup (struct thread *thread, void* vm_addr);
 
 struct sup_page_entry* vm_sup_page_allocate (void *vm_addr, bool writable);
-struct sup_page_entry* vm_sup_page_file_allocate (void *vm_addr, struct file* file, off_t file_offset, off_t read_bytes,bool writable);
-struct sup_page_entry* vm_sup_page_mmap_allocate (void *vm_addr, struct file* file, off_t file_offset, 
-  off_t read_bytes, int mmap_id, bool writable);
+
+struct sup_page_entry* vm_sup_page_file_allocate (void *vm_addr, 
+    struct file* file, off_t file_offset, off_t read_bytes,bool writable);
+
+struct sup_page_entry* vm_sup_page_mmap_allocate (void *vm_addr, 
+    struct file* file, off_t file_offset, off_t read_bytes, int mmap_id, 
+    bool writable);
 
 void vm_sup_page_load (struct sup_page_entry *sup_page_entry);
+
 void vm_sup_page_load_and_pin (struct sup_page_entry *sup_page_entry);
+
 void vm_sup_page_unpin (struct sup_page_entry *sup_page_entry);
 
 bool vm_load_file(struct sup_page_entry *sup_page_entry);
+
 bool vm_load_swap(struct sup_page_entry *sup_page_entry);
 
 bool vm_write_mmap_back(struct sup_page_entry *sup_page_entry);
+
 bool vm_delete_mmap_entry(struct sup_page_entry *sup_page_entry);
 
 void vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED);

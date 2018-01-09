@@ -7,7 +7,6 @@
 #include "vm/swap.h"
 #include <stdio.h>
 
-// TODO some of these dont need to be static?
 static struct block *swap;
 static unsigned swap_size;
 
@@ -46,13 +45,12 @@ vm_swap_get_free(void)
 {
   ASSERT(lock_held_by_current_thread(&swap_lock));  
 
-  /* get the first sector with SECTORS_FOR_PAGE successive free secors and sets these sectors to 
-      occupied already */
+  /* get the first sector with SECTORS_FOR_PAGE successive free secors 
+     and sets these sectors to occupied already */
   block_sector_t free_sector = bitmap_scan (swap_free_bitmap, 0, 1, true);
 
   if (free_sector == BITMAP_ERROR){
     PANIC("No SWAP Block of sufficient size found!");
-    //TODO: check if return 0 is okay
     return 0;
   }
 
@@ -67,17 +65,18 @@ vm_swap_get_free(void)
 block_sector_t
 vm_swap_page(void *phys_addr)
 {
-  // TODO verify page reference? is_uservaddr?
   lock_acquire(&swap_lock);
   ASSERT(phys_addr != NULL);
 
   block_sector_t free_sector = vm_swap_get_free();
 
-  /* write SECTORS_FOR_PAGE amount of blocks into swap starting at block free_sector */
+  /* write SECTORS_FOR_PAGE amount of blocks into swap starting 
+     at block free_sector */
   block_sector_t sector_iterator = 0;
-  for (sector_iterator = 0; sector_iterator < SECTORS_FOR_PAGE; sector_iterator++){
-      /* TODO block_write Internally synchronizes accesses to block devices, so
-          external per-block device locking is unneeded. */
+  for (sector_iterator = 0; 
+        sector_iterator < SECTORS_FOR_PAGE; sector_iterator++) {
+      /* block_write Internally synchronizes accesses to block devices, so
+          external per-block device locking is unnecessary. */
       block_write(swap, free_sector * SECTORS_FOR_PAGE + sector_iterator,
                   phys_addr + (BLOCK_SECTOR_SIZE * sector_iterator));
   }
@@ -87,28 +86,27 @@ vm_swap_page(void *phys_addr)
 }
 
 
-/* writes the sectors starting at swap_sector into the passed page. Because a page
-   contains out of more than one sector, we adress sectors not by their sector Number
-   but rather with the index they are contained in the bitmap. This makes adressing
-   much easier to understand. */
+/* writes the sectors starting at swap_sector into the passed page. Because a
+   page contains out of more than one sector, we adress sectors not by their 
+   sector Number but rather with the index they are contained in the bitmap. 
+   This makes adressing much easier to understand. */
 void
 vm_swap_back(block_sector_t swap_sector, void *phys_addr)
 {
-  // TODO verify page reference? is_uservaddr?
   lock_acquire(&swap_lock);
   ASSERT(swap_sector < swap_size);
   ASSERT(phys_addr != NULL);
 
-  /* if the sector we are trying to swap back is free, something went horribly wrong! */
   if (bitmap_test(swap_free_bitmap, swap_sector) == true){
-    printf("trying to swap back a free swap sector, this should never happen!\n");
     lock_release(&swap_lock);
-    return;
+    PANIC("trying to swap back a free swap sector!\n");
   }
 
-  /* write SECTORS_FOR_PAGE amount of blocks into page starting at block swap_sector */
+  /* write SECTORS_FOR_PAGE amount of blocks into page starting 
+     at block swap_sector */
   block_sector_t sector_iterator = 0;
-  for (sector_iterator = 0; sector_iterator < SECTORS_FOR_PAGE; sector_iterator++){
+  for (sector_iterator = 0; 
+            sector_iterator < SECTORS_FOR_PAGE; sector_iterator++) {
       /* block_write Internally synchronizes accesses to block devices, so
           external per-block device locking is unneeded. */
       block_read(swap, swap_sector * SECTORS_FOR_PAGE + sector_iterator,
@@ -128,8 +126,8 @@ vm_swap_free(block_sector_t swap_sector)
 
   lock_acquire(&swap_lock);
   if (bitmap_test(swap_free_bitmap, swap_sector) == true) {
-      printf("trying to free a already free swap block, this should never happen!\n");
-      return;
+      lock_release(&swap_lock);
+      PANIC("trying to free a already free swap block!\n");
   }
 
   bitmap_set(swap_free_bitmap, swap_sector, true);

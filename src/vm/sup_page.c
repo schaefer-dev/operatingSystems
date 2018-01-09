@@ -25,7 +25,9 @@ bool vm_write_file_back_on_delete(struct sup_page_entry *sup_page_entry);
 unsigned
 hash_vm_sup_page(const struct hash_elem *sup_p_, void *aux UNUSED)
 {
-  const struct sup_page_entry *sup_p = hash_entry(sup_p_, struct sup_page_entry, h_elem);
+  const struct sup_page_entry *sup_p = 
+        hash_entry(sup_p_, struct sup_page_entry, h_elem);
+
   unsigned hash_val = hash_int((int) sup_p->vm_addr);
   return hash_val;
 }
@@ -33,10 +35,14 @@ hash_vm_sup_page(const struct hash_elem *sup_p_, void *aux UNUSED)
 
 /* Hash compare function for supplemental page table entries */
 bool
-hash_compare_vm_sup_page(const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED)
+hash_compare_vm_sup_page(const struct hash_elem *a_, 
+      const struct hash_elem *b_, void *aux UNUSED)
 {
-  const struct sup_page_entry *a = hash_entry (a_, struct sup_page_entry, h_elem);
-  const struct sup_page_entry *b = hash_entry (b_, struct sup_page_entry, h_elem);
+  const struct sup_page_entry *a = 
+        hash_entry (a_, struct sup_page_entry, h_elem);
+
+  const struct sup_page_entry *b = 
+        hash_entry (b_, struct sup_page_entry, h_elem);
 
   bool result = (a->vm_addr) < (b->vm_addr);
 
@@ -53,17 +59,22 @@ vm_sup_page_lookup (struct thread *thread, void *vm_addr)
   struct hash_elem *hash;
 
   search_sup_page_entry.vm_addr = vm_addr;
-  hash = hash_find(&(thread->sup_page_hashmap), &(search_sup_page_entry.h_elem));
+  hash = hash_find(&(thread->sup_page_hashmap), 
+        &(search_sup_page_entry.h_elem));
   
-  // TODO refactor this line!
-  return hash != NULL ? hash_entry (hash, struct sup_page_entry, h_elem) : NULL; 
+  if (hash != NULL) {
+    return hash_entry (hash, struct sup_page_entry, h_elem);
+  } else {
+    return NULL;
+  }
 }
 
 
 /* initialize ressources for supplemental page */
 void
 vm_sup_page_init (struct thread *thread) {
-  hash_init(&thread->sup_page_hashmap, hash_vm_sup_page, hash_compare_vm_sup_page, NULL);
+  hash_init(&thread->sup_page_hashmap, 
+        hash_vm_sup_page, hash_compare_vm_sup_page, NULL);
 }
 
 
@@ -77,46 +88,33 @@ vm_grow_stack(void *fault_frame_addr)
     return true;
   }
 
-  //printf("DEBUG: grow stack print 1\n");
-  struct sup_page_entry *sup_page_entry =  vm_sup_page_allocate(fault_frame_addr, true);
-  //printf("DEBUG: grow stack print 2\n");
-  ASSERT(!lock_held_by_current_thread(&sup_page_entry->page_lock));
-  ASSERT(!lock_held_by_current_thread(&frame_lock));
+  struct sup_page_entry *sup_page_entry =  
+        vm_sup_page_allocate(fault_frame_addr, true);
+
   lock_acquire(&sup_page_entry->page_lock);
   sup_page_entry->pinned = true;
 
-  //printf("DEBUG: grow stack print 3\n");
-  void *page = vm_frame_allocate(sup_page_entry, (PAL_ZERO | PAL_USER) , true);
-  //printf("DEBUG: grow stack print 4\n");
-  //sup_page_entry->pinned = true;
+  void *page = vm_frame_allocate(sup_page_entry, (PAL_ZERO | PAL_USER), true);
 
   if (page == NULL){
     lock_release(&sup_page_entry->page_lock);
-    printf("stack growth could not allocate page!\n");
     lock_release(&grow_stack_lock);
+    PANIC("stack growth could not allocate page!\n");
     return false;
   }
 
-  //printf("DEBUG: grow stack print 5\n");
-  bool success = install_page(sup_page_entry->vm_addr, sup_page_entry->phys_addr, sup_page_entry->writable);
-  // TODO we should verify success
-  if (!success)
-    printf("DEBUG: failure of page install in grow stack\n");
-  success = true;
-  if (success){
+  bool success = install_page(sup_page_entry->vm_addr, 
+        sup_page_entry->phys_addr, sup_page_entry->writable);
+  
+  if (!success) {
+    PANIC("DEBUG: failure of page install in grow stack\n");
+  } else {
     sup_page_entry->status = PAGE_STATUS_LOADED;
     sup_page_entry->pinned = false;
     lock_release(&sup_page_entry->page_lock);
     lock_release(&grow_stack_lock);
-    return true;
-  } else {
-    vm_frame_free(page, sup_page_entry->vm_addr);
-    hash_delete(&(thread_current()->sup_page_hashmap), &(sup_page_entry->h_elem));
-    lock_release(&sup_page_entry->page_lock);
-    free(sup_page_entry);
-    lock_release(&grow_stack_lock);
-    return true;
   }
+  return true;
 }
 
 
@@ -124,7 +122,8 @@ vm_grow_stack(void *fault_frame_addr)
 /* function to allocate a supplemental page table entry e.g. a stack*/
 struct sup_page_entry*
 vm_sup_page_allocate (void *vm_addr, bool writable){
-  struct sup_page_entry *sup_page_entry = (struct sup_page_entry *) malloc(sizeof(struct sup_page_entry));
+  struct sup_page_entry *sup_page_entry = (struct sup_page_entry *) 
+        malloc(sizeof(struct sup_page_entry));
 
   sup_page_entry->phys_addr = NULL;
 
@@ -152,9 +151,11 @@ vm_sup_page_allocate (void *vm_addr, bool writable){
 /* function to allocate a supplemental page table entry for files incuding the file 
 and the offset within the file*/
 struct sup_page_entry*
-vm_sup_page_file_allocate (void *vm_addr, struct file* file, off_t file_offset, off_t read_bytes, bool writable)
+vm_sup_page_file_allocate (void *vm_addr, struct file* file, 
+      off_t file_offset, off_t read_bytes, bool writable)
 {
-  struct sup_page_entry *sup_page_entry = (struct sup_page_entry *) malloc(sizeof(struct sup_page_entry));
+  struct sup_page_entry *sup_page_entry = (struct sup_page_entry *) 
+        malloc(sizeof(struct sup_page_entry));
 
   sup_page_entry->phys_addr = NULL;
   sup_page_entry->vm_addr = vm_addr;
@@ -178,13 +179,14 @@ vm_sup_page_file_allocate (void *vm_addr, struct file* file, off_t file_offset, 
 }
 
 
-/* function to allocate a supplemental page table entry for mmaped files incuding the file 
-and the offset within the file*/
+/* function to allocate a supplemental page table entry for mmaped 
+  files incuding the file and the offset within the file */
 struct sup_page_entry*
-vm_sup_page_mmap_allocate (void *vm_addr, struct file* file, off_t file_offset, 
-  off_t read_bytes, int mmap_id, bool writable)
+vm_sup_page_mmap_allocate (void *vm_addr, struct file* file, 
+      off_t file_offset, off_t read_bytes, int mmap_id, bool writable)
 {
-  struct sup_page_entry *sup_page_entry = (struct sup_page_entry *) malloc(sizeof(struct sup_page_entry));
+  struct sup_page_entry *sup_page_entry = (struct sup_page_entry *) 
+        malloc(sizeof(struct sup_page_entry));
 
   sup_page_entry->phys_addr = NULL;
   sup_page_entry->vm_addr = vm_addr;
@@ -207,16 +209,13 @@ vm_sup_page_mmap_allocate (void *vm_addr, struct file* file, off_t file_offset,
   return sup_page_entry;
 }
 
-// try to lock sup_page_lock during sup_page_load
+/* load this sup_page into physical memory */
 void
 vm_sup_page_load (struct sup_page_entry *sup_page_entry){
   ASSERT(((int)(sup_page_entry->vm_addr) % PGSIZE) == 0);
-  ASSERT(!lock_held_by_current_thread(&sup_page_entry->page_lock));
-  ASSERT(!lock_held_by_current_thread(&frame_lock));
   lock_acquire(&sup_page_entry->page_lock);
   sup_page_entry->pinned = true;
 
-  //printf("DEBUG loading sup_page at vaddr: %p\n", sup_page_entry->vm_addr);
   switch (sup_page_entry->status)
     {
       case PAGE_STATUS_NOT_LOADED:
@@ -234,22 +233,21 @@ vm_sup_page_load (struct sup_page_entry *sup_page_entry){
 
       case PAGE_STATUS_LOADED:
         {
-          ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
           lock_release(&sup_page_entry->page_lock);
           return;
         }
       default:
         {
-          printf("Illegal page status in sup_page_load!\n");
+          PANIC("Illegal page status in sup_page_load!\n");
         }
     }
 
   sup_page_entry->status = PAGE_STATUS_LOADED;
-  ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
   lock_release(&sup_page_entry->page_lock);
-  bool success = install_page(sup_page_entry->vm_addr, sup_page_entry->phys_addr, sup_page_entry->writable);
+  bool success = install_page(sup_page_entry->vm_addr, 
+        sup_page_entry->phys_addr, sup_page_entry->writable);
   if (!success)
-    printf("DEBUG: page loading page install failed");
+    PANIC("Page loading page install failed");
 }
 
 
@@ -260,11 +258,11 @@ vm_load_swap(struct sup_page_entry *sup_page_entry)
   ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
   ASSERT(sup_page_entry != NULL);
 
-  void *page = vm_frame_allocate(sup_page_entry, (PAL_ZERO | PAL_USER) , sup_page_entry->writable);
+  void *page = vm_frame_allocate(sup_page_entry, (PAL_ZERO | PAL_USER) , 
+        sup_page_entry->writable);
 
   if (page == NULL){
-    printf("load file could not allocate page!\n");
-    return false;
+    PANIC("load file could not allocate page!\n");
   }
 
   vm_swap_back(sup_page_entry->swap_addr, page);
@@ -288,22 +286,20 @@ vm_load_file(struct sup_page_entry *sup_page_entry){
 
   struct file *file = sup_page_entry->file;
 
-  void *page = vm_frame_allocate(sup_page_entry, (PAL_ZERO | PAL_USER) , sup_page_entry->writable);
+  void *page = vm_frame_allocate(sup_page_entry, (PAL_ZERO | PAL_USER), 
+        sup_page_entry->writable);
 
   if (page == NULL){
-    printf("load file could not allocate page!\n");
-    return false;
+    PANIC("load file could not allocate page!\n");
   }
 
   if (read_bytes != 0){
-    ASSERT(!lock_held_by_current_thread(&lock_filesystem));
     lock_acquire(&lock_filesystem);
     file_seek(file, file_offset);
     off_t file_read_bytes = file_read (file, page, read_bytes);
     memset (page + read_bytes, 0, PGSIZE - read_bytes);
     if (file_read_bytes != read_bytes){
       /* file not correctly read, free frame and indicate file not loaded */
-      printf("DEBUG: file not correctly read in vm_load_file!\n");
       lock_release(&lock_filesystem);
       vm_frame_free (page, sup_page_entry->vm_addr);
       return false;
@@ -313,25 +309,22 @@ vm_load_file(struct sup_page_entry *sup_page_entry){
 
   /*indicate that frame is now loaded */
   sup_page_entry->phys_addr = page;
-
   return true;
 }
 
+/* load and pin this page (used only for syscall) */
 void
 vm_sup_page_load_and_pin (struct sup_page_entry *sup_page_entry)
 {
   ASSERT(!lock_held_by_current_thread(&sup_page_entry->page_lock));
   /* vm_sup_page_load pins */ 
-  //sup_page_entry->pinned = true;
   vm_sup_page_load(sup_page_entry);
 }
 
-
+/* unpin this page (used only for syscall) */
 void
 vm_sup_page_unpin (struct sup_page_entry *sup_page_entry)
 {
-  ASSERT(!lock_held_by_current_thread(&sup_page_entry->page_lock));
-  ASSERT(!lock_held_by_current_thread(&frame_lock));
   lock_acquire(&sup_page_entry->page_lock);
   sup_page_entry->pinned = false;
   lock_release(&sup_page_entry->page_lock);
@@ -342,9 +335,7 @@ vm_sup_page_unpin (struct sup_page_entry *sup_page_entry)
 void
 vm_sup_page_hashmap_close(struct thread *thread)
 {
-  //printf("DEBUG: Destroying sup_pages start\n");
   hash_destroy(&(thread->sup_page_hashmap), vm_sup_page_free);
-  //printf("DEBUG: Destroying sup_pages end\n");
 }
 
 
@@ -356,9 +347,6 @@ vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED)
   struct sup_page_entry *lookup_sup_page_entry;
   lookup_sup_page_entry = hash_entry(hash, struct sup_page_entry, h_elem);
 
-  //printf("DEBUG: sup_page_free destroys vaddr: %p\n", lookup_sup_page_entry->vm_addr);
-  ASSERT(!lock_held_by_current_thread(&lookup_sup_page_entry->page_lock));
-  ASSERT(!lock_held_by_current_thread(&frame_lock));
   lock_acquire(&lookup_sup_page_entry->page_lock);
   switch (lookup_sup_page_entry->type)
     {
@@ -378,19 +366,15 @@ vm_sup_page_free(struct hash_elem *hash, void *aux UNUSED)
           break;
         }
     default:
-      {
-        printf("Illegal PAGE_TYPE found!\n");
-        syscall_exit(-1);
-        break;
-      }
+        {
+          PANIC("Illegal PAGE_TYPE found!\n");
+        }
 
     }
-  //printf("DEBUG: free sup page start \n");
   free(lookup_sup_page_entry);
-  //printf("DEBUG: free sup page end \n");
 }
 
-
+/* free the stack page in this sup_page_entry */
 void
 vm_sup_page_free_stack(struct sup_page_entry *sup_page_entry)
 {
@@ -401,35 +385,31 @@ vm_sup_page_free_stack(struct sup_page_entry *sup_page_entry)
         {
           void *phys_addr = sup_page_entry->phys_addr;
           void *upage = sup_page_entry->vm_addr;
-          ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
           lock_release(&sup_page_entry->page_lock);
           vm_frame_free(phys_addr, upage);
           break;
         }
       case PAGE_STATUS_NOT_LOADED:
         {
-          printf("STACK WITH ILLEGAL STATUS NOT_LOADED!\n");
-          ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
           lock_release(&sup_page_entry->page_lock);
+          PANIC("STACK WITH ILLEGAL STATUS NOT_LOADED!\n");
           break;
         }
       case PAGE_STATUS_SWAPPED:
         {
           vm_swap_free(sup_page_entry->swap_addr);
-          ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
           lock_release(&sup_page_entry->page_lock);
           break;
         }
       default:
         {
-          printf("Illegal PAGE_STATUS found!\n");
-          syscall_exit(-1);
-          break;
+          PANIC("Illegal PAGE_STATUS found in free stack!\n");
         }
     }
 }
 
 
+/* free the mmap page in this sup_page_entry */
 void
 vm_sup_page_free_mmap(struct sup_page_entry *sup_page_entry)
 {
@@ -441,35 +421,30 @@ vm_sup_page_free_mmap(struct sup_page_entry *sup_page_entry)
           vm_write_mmap_back(sup_page_entry);
           void *phys_addr = sup_page_entry->phys_addr;
           void *upage = sup_page_entry->vm_addr;
-          ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
           lock_release(&sup_page_entry->page_lock);
           vm_frame_free(phys_addr, upage);
           break;
         }
       case PAGE_STATUS_SWAPPED:
         {
-          printf("MMAP page is not allowed to be swapped!\n");
-          ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
           lock_release(&sup_page_entry->page_lock);
-          syscall_exit(-1);
+          PANIC("MMAP page is not allowed to be swapped, ILLEGAL status!\n");
           break;
         }
       case PAGE_STATUS_NOT_LOADED:
         {
           /* in the case of NOT_LOADED nothing has to be written back */
-          ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
           lock_release(&sup_page_entry->page_lock);
           break;
         }
       default:
         {
-          printf("Illegal PAGE_STATUS found!\n");
-          syscall_exit(-1);
-          break;
+          PANIC("Illegal PAGE_STATUS found in free mmap!\n");
         }
     }
 }
 
+/* free the file page in this sup_page_entry */
 void
 vm_sup_page_free_file(struct sup_page_entry *sup_page_entry)
 {
@@ -480,7 +455,6 @@ vm_sup_page_free_file(struct sup_page_entry *sup_page_entry)
         {
           void *phys_addr = sup_page_entry->phys_addr;
           void *upage = sup_page_entry->vm_addr;
-          ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
           lock_release(&sup_page_entry->page_lock);
           vm_frame_free(phys_addr, upage);
           break;
@@ -488,45 +462,41 @@ vm_sup_page_free_file(struct sup_page_entry *sup_page_entry)
       case PAGE_STATUS_SWAPPED:
         {
 	        vm_swap_free(sup_page_entry->swap_addr);
-          ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
           lock_release(&sup_page_entry->page_lock);
           break;
         }
       case PAGE_STATUS_NOT_LOADED:
         {
           /* in the case of NOT_LOADED nothing has to be written back */
-          ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
           lock_release(&sup_page_entry->page_lock);
           break;
         }
       default:
         {
-          printf("Illegal PAGE_STATUS found!\n");
-          syscall_exit(-1);
-          break;
+          PANIC("Illegal PAGE_STATUS found!\n");
         }
     }
 }
 
 
-/* writes the changes back to file if dirty */
+/* writes mmap sup_page_entry back to file if dirty */
 bool vm_write_mmap_back(struct sup_page_entry *sup_page_entry){
   ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
   if (sup_page_entry->type != PAGE_TYPE_MMAP){
-    printf("try to remove mmap but entry is not of type mmap");
-    return false;
+    PANIC("try to remove mmap but entry is not of type mmap");
   }
 
   void* vaddr = sup_page_entry->vm_addr;
   void* phys_addr = sup_page_entry->phys_addr;
   bool dirty = pagedir_is_dirty(sup_page_entry->thread->pagedir, vaddr);
+
   if(!dirty)
     return true;
+
   struct file *file = sup_page_entry->file;
   off_t file_offset = sup_page_entry->file_offset;
   off_t read_bytes = sup_page_entry->read_bytes;
 
-  ASSERT(!lock_held_by_current_thread(&lock_filesystem));
   lock_acquire(&lock_filesystem);
   off_t written_bytes = file_write_at(file, vaddr, read_bytes, file_offset);
   lock_release(&lock_filesystem);
@@ -537,28 +507,24 @@ bool vm_write_mmap_back(struct sup_page_entry *sup_page_entry){
 
 /* removes mmap entry from hashtable and frees! */
 bool vm_delete_mmap_entry(struct sup_page_entry *sup_page_entry){
-  ASSERT(!lock_held_by_current_thread(&sup_page_entry->page_lock));
-  ASSERT(!lock_held_by_current_thread(&frame_lock));
-  lock_acquire(&sup_page_entry->page_lock);
 
+  lock_acquire(&sup_page_entry->page_lock);
   struct thread *thread = sup_page_entry->thread;
 
   if (!vm_write_mmap_back(sup_page_entry)){
-    printf("vm_write_mmap_back failed! This should never happen!\n");
-    return false;
+    PANIC("vm_write_mmap_back failed!\n");
   }
-  struct hash_elem *hash_elem = hash_delete(&(thread->sup_page_hashmap), &(sup_page_entry->h_elem));
+  struct hash_elem *hash_elem = hash_delete(&(thread->sup_page_hashmap), 
+        &(sup_page_entry->h_elem));
 
   if (hash_elem == NULL){
-    printf("element which should be deleted not found");
-    return false;
+    PANIC("element which should be deleted not found");
   }
 
   void *phys_addr = sup_page_entry->phys_addr;
   void *upage = sup_page_entry->vm_addr;
 
   if (sup_page_entry->status == PAGE_STATUS_LOADED){
-    ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
     lock_release(&sup_page_entry->page_lock);
     ASSERT(phys_addr != NULL);
     vm_frame_free(phys_addr, upage);

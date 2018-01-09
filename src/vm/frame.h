@@ -17,7 +17,6 @@ struct frame
     void *phys_addr;               
 
     /* supplemental Page Table Entry in which this frame is stored. */
-    // for shared memory implementation, this will change into a list of sup_page_entries
     struct sup_page_entry *sup_page_entry;
 
     struct list_elem l_elem;
@@ -25,13 +24,10 @@ struct frame
 
 void vm_frame_init(void);
 
-// TODO writable necessary here?
 void* vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags pflags, bool writable);
 
 void vm_frame_free (void* phys_addr, void* upage);
 void debug_vm_frame_print(void);
 struct frame* vm_frame_lookup (void* phys_addr);
-
-// TODO Pinning functions here? LOCK them!
 
 #endif /* vm/frame.h */
