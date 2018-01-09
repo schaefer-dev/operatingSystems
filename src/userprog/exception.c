@@ -156,9 +156,9 @@ page_fault (struct intr_frame *f)
 
   /* notify parent about syscall */
 
-  /* faulting at NULL outside user virtual adress space or writing to read only page */
+  /* faulting at NULL outside user virtual adress space or
+   writing to read only page */
   if ((fault_addr == NULL) || (!not_present) || (!is_user_vaddr(fault_addr))){
-    //printf("syscall_exit in page fault\n");
     syscall_exit(-1);
   }
 
@@ -171,24 +171,16 @@ page_fault (struct intr_frame *f)
     stack_pointer = thread_current()->syscall_esp;
   }
 
-  struct sup_page_entry *sup_page_entry = vm_sup_page_lookup (thread_current(), fault_frame_addr);
+  struct sup_page_entry *sup_page_entry = 
+          vm_sup_page_lookup (thread_current(), fault_frame_addr);
 
   if (sup_page_entry == NULL){
-    if ((fault_addr + 32 >= stack_pointer) && (fault_addr < PHYS_BASE) && (PHYS_BASE - STACK_SIZE <= fault_frame_addr)){
+    if (((int32_t)fault_addr + 32 >= (int32_t)stack_pointer) &&
+          ((int32_t)fault_addr < PHYS_BASE) &&
+          (PHYS_BASE - STACK_SIZE <= (int32_t)fault_frame_addr)){
       vm_grow_stack(fault_frame_addr);
     } else {
-      if (stack_pointer != NULL)
         syscall_exit(-1);
-      bool lock_held_before = false;
-      if (lock_held_by_current_thread(&frame_lock)){
-        lock_release(&frame_lock);
-        bool lock_held_before = true;
-      printf("grow_stack in page fault start\n");
-      vm_grow_stack(fault_frame_addr);
-      printf("grow_stack in page fault finished\n");
-      if (lock_held_before)
-        lock_acquire(&frame_lock);
-      }
     }
 
   } else {

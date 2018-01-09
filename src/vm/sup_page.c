@@ -487,7 +487,6 @@ bool vm_write_mmap_back(struct sup_page_entry *sup_page_entry){
   }
 
   void* vaddr = sup_page_entry->vm_addr;
-  void* phys_addr = sup_page_entry->phys_addr;
   bool dirty = pagedir_is_dirty(sup_page_entry->thread->pagedir, vaddr);
 
   if(!dirty)
@@ -498,7 +497,7 @@ bool vm_write_mmap_back(struct sup_page_entry *sup_page_entry){
   off_t read_bytes = sup_page_entry->read_bytes;
 
   lock_acquire(&lock_filesystem);
-  off_t written_bytes = file_write_at(file, vaddr, read_bytes, file_offset);
+  file_write_at(file, vaddr, read_bytes, file_offset);
   lock_release(&lock_filesystem);
 
   return true;
