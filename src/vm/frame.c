@@ -58,7 +58,7 @@ vm_frame_init () {
    and return its physical adress */
 void*
 vm_frame_allocate (struct sup_page_entry *sup_page_entry, enum palloc_flags 
-pflags, bool writable)
+pflags, bool writable UNUSED)
 {
   ASSERT(lock_held_by_current_thread(&sup_page_entry->page_lock));
 

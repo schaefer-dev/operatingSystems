@@ -289,8 +289,9 @@ load_and_pin_buffer(const void *buffer, unsigned size, void *esp){
     }
     last_vm_addr = vm_addr;
     if (((int32_t)buffer_iter + 32 >= (int32_t)esp) &&
-          ((int32_t)buffer_iter < PHYS_BASE) &&
-          (PHYS_BASE - STACK_SIZE <= (int32_t)vm_addr)){
+          ((int32_t)buffer_iter < (int32_t)PHYS_BASE) &&
+          ((int32_t)PHYS_BASE - (int32_t)STACK_SIZE <=
+                                  (int32_t)vm_addr)){
       vm_grow_stack(vm_addr);
     }
     vm_sup_page_load_and_pin(vm_sup_page_lookup(thread_current(), vm_addr));
@@ -335,8 +336,9 @@ load_and_pin_string(const void *buffer, void *esp){
     }
     last_vm_addr = vm_addr;
     if (((int32_t)buffer_iter + 32 >= (int32_t)esp) && 
-          ((int32_t)buffer_iter < PHYS_BASE) && 
-          (PHYS_BASE - STACK_SIZE <= (int32_t)vm_addr)){
+          ((int32_t)buffer_iter < (int32_t)PHYS_BASE) && 
+          ((int32_t)PHYS_BASE - (int32_t)STACK_SIZE <= 
+                  (int32_t)vm_addr)){
       vm_grow_stack(vm_addr);
     }
     vm_sup_page_load_and_pin(vm_sup_page_lookup(thread_current(), vm_addr));

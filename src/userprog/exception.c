@@ -176,8 +176,9 @@ page_fault (struct intr_frame *f)
 
   if (sup_page_entry == NULL){
     if (((int32_t)fault_addr + 32 >= (int32_t)stack_pointer) &&
-          ((int32_t)fault_addr < PHYS_BASE) &&
-          (PHYS_BASE - STACK_SIZE <= (int32_t)fault_frame_addr)){
+          ((int32_t)fault_addr < (int32_t)PHYS_BASE) &&
+          ((int32_t)PHYS_BASE - (int32_t)STACK_SIZE <= 
+                    (int32_t)fault_frame_addr)){
       vm_grow_stack(fault_frame_addr);
     } else {
         syscall_exit(-1);
