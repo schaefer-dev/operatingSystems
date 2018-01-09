@@ -21,6 +21,8 @@ test_main (void)
   //msg("buffer at: %p", buf);
   //msg("test_name at: %p", test_name);
 
+  // auf dirty variable schauen
+
   /* Initialize to 0x5a. */
   msg ("initialize");
   memset (buf, 0x5a, sizeof buf);

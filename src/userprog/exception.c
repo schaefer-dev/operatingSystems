@@ -154,10 +154,7 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  //printf("DEBUG: Page Fault happened! AT:%p \n", fault_addr);
-
   /* notify parent about syscall */
-  // TODO check if user and page not user or if pointer null or if writing to read only page
 
   /* faulting at NULL outside user virtual adress space or writing to read only page */
   if ((fault_addr == NULL) || (!not_present) || (!is_user_vaddr(fault_addr))){
@@ -171,8 +168,6 @@ page_fault (struct intr_frame *f)
   if (user == true){
     stack_pointer = f->esp;
   } else {
-    // TODO get stack pointer for Kernel, has to be stored somewhere
-    //printf("DEBUG: Syscall stack pointer for kernel has to be found from somewhere\n");
     stack_pointer = thread_current()->syscall_esp;
   }
 

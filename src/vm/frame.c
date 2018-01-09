@@ -236,6 +236,7 @@ vm_evict_page(enum palloc_flags pflags){
         }
 
         iter_sup_page->phys_addr = NULL;
+        pagedir_clear_page(page_thread->pagedir, iter_sup_page->vm_addr);
         lock_release(&iter_sup_page->page_lock);
         /* frame is current itertion move iterator one step */
         vm_evict_page_next_iterator();
@@ -246,8 +247,6 @@ vm_evict_page(enum palloc_flags pflags){
             are placed in the swap partition 
         */
         palloc_free_page(iter_frame->phys_addr);
-
-        pagedir_clear_page(page_thread->pagedir, iter_sup_page->vm_addr);
 
         //printf("DEBUG: freeing iter_frame in evict start\n");
         free(iter_frame);
@@ -272,11 +271,12 @@ void vm_evict_file(struct sup_page_entry *sup_page_entry, struct frame *frame){
   
   struct thread *thread = sup_page_entry->thread;
   bool dirty = pagedir_is_dirty(thread->pagedir, sup_page_entry->vm_addr);
-  if (dirty){
+  if (dirty || sup_page_entry->dirty){
     /* changed content has to be written to swap partition */
     block_sector_t swap_block = vm_swap_page(frame->phys_addr);
     sup_page_entry->status = PAGE_STATUS_SWAPPED;
     sup_page_entry->swap_addr = swap_block;
+    sup_page_entry->dirty = true;
   } else {
     /* nothing has changed, content can simply be loaded from file */
     sup_page_entry->status = PAGE_STATUS_NOT_LOADED;

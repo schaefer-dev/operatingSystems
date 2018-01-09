@@ -65,6 +65,9 @@ struct sup_page_entry
     /* bool to indicate if the page is pinned */
     bool pinned;
 
+    /* bool to indicate if the page is dirty (only used for normal files) */
+    bool dirty;
+
     /* palloc flags which are used when the frame is created */
     enum palloc_flags pflags;
 
