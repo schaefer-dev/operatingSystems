@@ -128,7 +128,7 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
-    // TODO initialize this hashmap in thread creation!
+    
     /* hashmap from vm_addr -> supplemental page for efficient lookup */
     struct hash sup_page_hashmap;
 
@@ -205,9 +205,10 @@ void thread_terminate_child_setup(void);
 
 struct thread* get_thread(tid_t);
 
-/* Hash functions to manage mmap files */
+/* functions to manage mmap files */
 unsigned hash_mmap(const struct hash_elem *mmap_entry_, void *aux UNUSED);
-bool hash_compare_mmap_entry(const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED);
+bool hash_compare_mmap_entry(const struct hash_elem *a_, 
+      const struct hash_elem *b_, void *aux UNUSED);
 struct mmap_entry* mmap_entry_lookup (struct thread *thread, int mmap_id);
 void mmap_hashmap_free(struct hash_elem *hash, void *aux UNUSED);
 void mmap_hashmap_close(struct thread *thread);

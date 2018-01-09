@@ -812,30 +812,31 @@ bool check_mmap_overlap(void *vaddr, unsigned size, void *esp){
   return true;
 }
 
-/* syscall to mmap files */
+/* syscall to create mmap files */
 mapid_t syscall_mmap(int fd, void *vaddr, void *esp){
-  //printf("syscall mmap reached\n");
   if (!validate_mmap(fd, vaddr, esp))
     return -1;
-  //printf("validate mmap okay\n");
-  ASSERT(!lock_held_by_current_thread(&lock_filesystem));
+
   lock_acquire(&lock_filesystem);
   struct file *open_file = get_file(fd);
   if (open_file == NULL){
     lock_release(&lock_filesystem);
     return -1;
   }
+
   /* reopen file as mentioned in description */
   struct file* file = file_reopen(open_file);
   if (file == NULL){
     lock_release(&lock_filesystem);
     return -1;
   }
+
   unsigned size = file_length(file);
   if (size == 0){
     lock_release(&lock_filesystem);
     return -1;
   }
+
   struct thread *thread = thread_current();
   mapid_t current_mmapid = thread->current_mmapid;
   thread->current_mmapid += 1;
@@ -844,7 +845,7 @@ mapid_t syscall_mmap(int fd, void *vaddr, void *esp){
   /* check if mmap overlaps */
   if (!check_mmap_overlap(vaddr, size, esp))
     return -1;
-  //printf("read mmap file okay\n");
+
   /* offset in file is initially 0 */
   off_t ofs = 0;
   void *start_vaddr = vaddr;
@@ -859,8 +860,8 @@ mapid_t syscall_mmap(int fd, void *vaddr, void *esp){
     }
 
     /* Add page to supplemental page table */
-    // TODO: check if it is always writable
-    if (!vm_sup_page_mmap_allocate (vaddr, file, ofs, page_read_bytes, current_mmapid, true)){
+    if (!vm_sup_page_mmap_allocate (vaddr, file, ofs, page_read_bytes, 
+          current_mmapid, true)){
       return -1;
     }
     needed_pages += 1;
@@ -870,7 +871,8 @@ mapid_t syscall_mmap(int fd, void *vaddr, void *esp){
   }
 
   /* add mmap_entry to mmap hashmap */
-  struct mmap_entry *mmap_entry = (struct mmap_entry *) malloc(sizeof(struct mmap_entry));
+  struct mmap_entry *mmap_entry = (struct mmap_entry *) 
+        malloc(sizeof(struct mmap_entry));
   mmap_entry->mmap_id = current_mmapid;
   mmap_entry->start_vaddr = start_vaddr;
   mmap_entry->needed_pages = needed_pages;
@@ -878,46 +880,41 @@ mapid_t syscall_mmap(int fd, void *vaddr, void *esp){
   struct hash_elem *insert_elem;
   insert_elem = hash_insert (&(thread->mmap_hashmap), &(mmap_entry->h_elem));
   if (insert_elem != NULL) {
-    printf("mmap could not be inserted in hash map\n");
-    return -1;
+    PANIC("mmap could not be inserted in hash map\n");
   }
 
   return current_mmapid; 
 }
 
+/* syscall to remove and write back mmap files */
 void syscall_munmap (mapid_t mapping){
   struct thread *thread = thread_current();
   /* get mmap entry from hash map and check if one is found */
   struct mmap_entry *mmap_entry = mmap_entry_lookup (thread, mapping);
   if (mmap_entry == NULL){
-    printf("mmap entry null in munmap\n");
-    syscall_exit(-1);
+    PANIC("MMAP: mmap-entry null in munmap\n");
   }
   
   unsigned needed_pages = mmap_entry->needed_pages;
   void *vaddr = mmap_entry->start_vaddr;
   ASSERT(needed_pages > 0);
   
-  struct hash_elem *hash_elem = hash_delete (&(thread->mmap_hashmap), &(mmap_entry->h_elem));
+  struct hash_elem *hash_elem = hash_delete (&(thread->mmap_hashmap), 
+        &(mmap_entry->h_elem));
   if (hash_elem == NULL){
-    printf("element which should be deleted not found\n");
-    syscall_exit(-1);
+    PANIC("MMAP: element which should be deleted not found\n");
   }
   free(mmap_entry);
 
   while(needed_pages > 0){
-    struct sup_page_entry *sup_page_entry = vm_sup_page_lookup (thread, vaddr);
+    struct sup_page_entry *sup_page_entry = vm_sup_page_lookup(thread, vaddr);
     if (sup_page_entry == NULL){
-      printf("addr to delete does not exist\n");
-      syscall_exit(-1);
+      PANIC("MMAP: addr to delete does not exist\n");
     }
     if (!vm_delete_mmap_entry(sup_page_entry)){
-      printf("delete not possible\n");
-      syscall_exit(-1);
+      PANIC("MMAP: delete not possible\n");
     }
     needed_pages -= 1;
     vaddr += PGSIZE;
-    // TODO what is this line below?
-    //file = sup_page_entry->file;
   }
 }

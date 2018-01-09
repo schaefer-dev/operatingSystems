@@ -770,20 +770,22 @@ struct child_process* add_child(pid_t child_pid, pid_t parent_pid){
   return new_child;
 }
 
-// TODO move mmap stuff to sup page
-/* Hash function for supplemental page table entries */
+
+/* Hash function for mmap_entries */
 unsigned
 hash_mmap(const struct hash_elem *mmap_entry_, void *aux UNUSED)
 {
-  const struct mmap_entry *mmap_entry= hash_entry(mmap_entry_, struct mmap_entry, h_elem);
+  const struct mmap_entry *mmap_entry= hash_entry(mmap_entry_, 
+        struct mmap_entry, h_elem);
   unsigned hash_val = hash_int(mmap_entry->mmap_id);
   return hash_val;
 }
 
 
-/* Hash compare function for supplemental page table entries */
+/* Hash compare function for mmap entries */
 bool
-hash_compare_mmap_entry(const struct hash_elem *a_, const struct hash_elem *b_, void *aux UNUSED)
+hash_compare_mmap_entry(const struct hash_elem *a_, 
+      const struct hash_elem *b_, void *aux UNUSED)
 {
   const struct mmap_entry *a = hash_entry (a_, struct mmap_entry, h_elem);
   const struct mmap_entry *b = hash_entry (b_, struct mmap_entry, h_elem);
@@ -794,7 +796,8 @@ hash_compare_mmap_entry(const struct hash_elem *a_, const struct hash_elem *b_, 
 }
 
 
-/* returns the sup_page_entry of thread, corresponding to passed vm_addr */
+/* returns the sup_page_entry of thread, corresponding to passed mmap_id 
+   of MMAP entry */
 struct mmap_entry*
 mmap_entry_lookup (struct thread *thread, int mmap_id)
 {
@@ -805,8 +808,7 @@ mmap_entry_lookup (struct thread *thread, int mmap_id)
   search_mmap_entry.mmap_id = mmap_id;
   hash = hash_find(&(thread->mmap_hashmap), &(search_mmap_entry.h_elem));
   
-  // TODO refactor this line!
-  return hash != NULL ? hash_entry (hash, struct mmap_entry, h_elem) : NULL; 
+  return hash != NULL ? hash_entry (hash, struct mmap_entry, h_elem) : NULL;
 }
 
 void
@@ -814,13 +816,11 @@ mmap_hashmap_free(struct hash_elem *hash, void *aux UNUSED)
 {
   struct mmap_entry *lookup_mmap_entry;
   lookup_mmap_entry = hash_entry(hash, struct mmap_entry, h_elem);
-  //printf("DEBUG: reference to lookup %p\n", lookup_mmap_entry);
-  //printf("DEBUG: freeing mmap entry start\n");
+
   free(lookup_mmap_entry);
-  //printf("DEBUG: freeing mmap entry end\n");
 }
 
-/* close the entire hashmap and free all ressources contained in it */
+/* close the entire mmap hashmap and free all ressources contained in it */
 void
 mmap_hashmap_close(struct thread *thread)
 {

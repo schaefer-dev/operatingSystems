@@ -1,0 +1,22 @@
+{
+    "files.associations": {
+        "memory": "c",
+        "__functional_base": "cpp",
+        "__locale": "cpp",
+        "bitset": "cpp",
+        "functional": "cpp",
+        "string": "cpp",
+        "system_error": "cpp",
+        "__bit_reference": "c",
+        "__functional_03": "c",
+        "__mutex_base": "c",
+        "ios": "c",
+        "istream": "c",
+        "ostream": "c",
+        "streambuf": "c",
+        "tuple": "c",
+        "atomic": "c",
+        "algorithm": "c",
+        "list": "c"
+    }
+}
