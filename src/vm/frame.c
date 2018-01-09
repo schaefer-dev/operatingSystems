@@ -99,8 +99,7 @@ vm_frame_free (void *phys_addr, void *upage)
 
   if (found_frame == NULL) {
     lock_release(&frame_lock);
-    PANIC("frame at %p not found in Frame Table!\n", phys_addr)
-    return;
+    PANIC("frame at %p not found in Frame Table!\n", phys_addr);
   }
 
   /* if removed frame is current itertion move iterator one step */
